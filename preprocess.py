@@ -1,127 +1,140 @@
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, LabelEncoder, OrdinalEncoder
+from sklearn.impute import SimpleImputer
 
-print("=" * 60)
-print("  HEART DISEASE DATASET - PREPROCESSING PIPELINE")
-print("=" * 60)
 
-# ---------------------------------------------------------
-# STEP 1: Load Dataset
-# ---------------------------------------------------------
-raw_filename = 'heart_disease.csv'
-df = pd.read_csv(raw_filename)
+df = pd.read_csv('heart_disease.csv')
 
-print(f"\n[INFO] Loaded '{raw_filename}' successfully!")
+
 print(f"Dataset Shape: {df.shape[0]} rows, {df.shape[1]} columns")
+print("\nInitial Data Types and Missing Value Summary:")
+missing_summary = pd.DataFrame({
+    'Data Type': df.dtypes,
+    'Missing Count': df.isnull().sum(),# to scan for empty values in the dataset
+    'Missing Percentage (%)': (df.isnull().sum() / len(df)) * 100 
+})
+print(missing_summary)
+# missing summary for data quality assessment
 
-# ---------------------------------------------------------
-# STEP 2: Exploratory Groupby Analysis (Practical 3 & 4 Style)
-# ---------------------------------------------------------
-print("\n" + "-" * 50)
-print("1. Practical 3 & 4 Groupby Insights")
-print("-" * 50)
+#for removing duplicates, we will check for duplicate rows and remove them if any exist
+print("\n --- Removing Duplicates ---")
+duplicate_count = df.duplicated().sum()
+print(f"Duplicate rows found: {duplicate_count}")
 
-# Example 1: Average Health Vitals grouped by Heart Disease Status
-print("\n>>> Mean Risk Factors Grouped by Heart Disease Status:")
-vital_groupby = df.groupby('Heart Disease Status')[['Age', 'BMI', 'Cholesterol Level', 'Blood Pressure']].mean()
-print(vital_groupby.round(2))
-
-# Example 2: Count of patients grouped by Gender and Heart Disease Status
-print("\n>>> Patient Counts Grouped by Gender and Heart Disease Status:")
-gender_groupby = df.groupby(['Gender', 'Heart Disease Status']).size().unstack()
-print(gender_groupby)
-
-
-# ---------------------------------------------------------
-# STEP 3: Handle Missing Values using groupby()
-# ---------------------------------------------------------
-print("\n" + "-" * 50)
-print("2. Handling Missing Values via groupby Imputation")
-print("-" * 50)
-
-print(f"Total Missing Values Before Imputation: {df.isnull().sum().sum()}")
-
-# Identify numerical vs categorical columns
-num_cols = df.select_dtypes(include=['float64', 'int64']).columns.tolist()
-cat_cols = [col for col in df.columns if col not in num_cols and col != 'Heart Disease Status']
-
-# Impute numerical features using Median based on (Gender + Heart Disease Status) group
-for col in num_cols:
-    df[col] = df.groupby(['Gender', 'Heart Disease Status'])[col].transform(lambda x: x.fillna(x.median()))
-    # Backup fallback if group had all NaNs
-    df[col] = df[col].fillna(df[col].median())
-
-# Impute categorical features using Mode based on Heart Disease Status group
-for col in cat_cols:
-    df[col] = df.groupby('Heart Disease Status')[col].transform(
-        lambda x: x.fillna(x.mode()[0] if not x.mode().empty else 'Unknown')
-    )
-    df[col] = df[col].fillna(df[col].mode()[0])
-
-print(f"Total Missing Values After Imputation: {df.isnull().sum().sum()}")
+# if got duplicate rows, we will remove them and reset the index starting from 0
+if duplicate_count > 0:
+    df = df.drop_duplicates().reset_index(drop=True)
+    print("Duplicates removed successfully.")
 
 
-# ---------------------------------------------------------
-# STEP 4: Feature Encoding (Categorical to Numerical)
-# ---------------------------------------------------------
-print("\n" + "-" * 50)
-print("3. Categorical & Ordinal Feature Encoding")
-print("-" * 50)
+# 0 mean No Heart Disease, 1 means Yes Heart Disease
+y = df['Heart Disease Status'].map({'No': 0, 'Yes': 1})
+# delete the heart disease status column from the feature set to avoid data leakage
+X = df.drop(columns=['Heart Disease Status'])
 
-# Binary Mappings (No -> 0, Yes -> 1)
-binary_map = {'No': 0, 'Yes': 1}
+
+print("\n--- Handling Missing Values ---")
+
+# replace 'NaN' to 'None' in Alcohol Consumption column 
+X['Alcohol Consumption'] = X['Alcohol Consumption'].fillna('None')
+
+# make two lists 
+# pick all columns that are numbers
+num_cols = X.select_dtypes(include=[np.number]).columns.tolist()
+# pick all columns that are text or object 
+cat_cols = X.select_dtypes(include=['object', 'str']).columns.tolist()
+
+# create a tool to fill missing numbers using the median
+num_imputer = SimpleImputer(strategy='median')
+X[num_cols] = num_imputer.fit_transform(X[num_cols])
+
+# fill missing values with the most frequent value (mode)
+cat_imputer = SimpleImputer(strategy='most_frequent')
+X[cat_cols] = cat_imputer.fit_transform(X[cat_cols])
+
+print("Missing values after imputation:", X.isnull().sum().sum())
+
+
+print("\n--- Handling Categorical Features ---")
+
+# encoding : make the Alpha to Numeric conversion 
+# low = 0, medium = 1, high = 2
+ordinal_mappings = {
+    'Exercise Habits': ['Low', 'Medium', 'High'],
+    'Alcohol Consumption': ['None', 'Low', 'Medium', 'High'],
+    'Stress Level': ['Low', 'Medium', 'High'],
+    'Sugar Consumption': ['Low', 'Medium', 'High']
+}
+
+for col, categories in ordinal_mappings.items():
+    oe = OrdinalEncoder(categories=[categories])
+    X[col] = oe.fit_transform(X[[col]])
+
+# define the binary categorical features that will be encoded using LabelEncoder
 binary_cols = [
-    'Smoking', 'Family Heart Disease', 'Diabetes', 
+    'Gender', 'Smoking', 'Family Heart Disease', 'Diabetes', 
     'High Blood Pressure', 'Low HDL Cholesterol', 'High LDL Cholesterol'
 ]
+#gender: female = 0, male = 1
+#smoking: no = 0, yes = 1
+#family heart disease: no = 0, yes = 1
+#diabetes: no = 0, yes = 1
+#high blood pressure: no = 0, yes = 1
+#low hdl cholesterol: no = 0, yes = 1
+#high ldl cholesterol: no = 0, yes = 1
 
+# encode binary categorical features using LabelEncoder
+# only 0 and 1 values will be assigned to the two categories
 for col in binary_cols:
-    df[col] = df[col].map(binary_map)
+    le = LabelEncoder()
+    X[col] = le.fit_transform(X[col])
 
-# Specific Mappings
-gender_map = {'Female': 0, 'Male': 1}
-target_map = {'No': 0, 'Yes': 1}
-
-df['Gender'] = df['Gender'].map(gender_map)
-df['Heart Disease Status'] = df['Heart Disease Status'].map(target_map)
-
-# Ordinal Multi-level Mappings (Low -> 0, Medium -> 1, High -> 2)
-ordinal_map = {'Low': 0, 'Medium': 1, 'High': 2}
-ordinal_cols = ['Exercise Habits', 'Alcohol Consumption', 'Stress Level', 'Sugar Consumption']
-
-for col in ordinal_cols:
-    df[col] = df[col].map(ordinal_map)
-
-print("[INFO] Successfully encoded all categorical and ordinal variables into numerical integers.")
+print("Sample encoded feature matrix:")
+print(X.head(5))
 
 
-# ---------------------------------------------------------
-# STEP 5: Export Unscaled & Scaled Clean Datasets
-# ---------------------------------------------------------
-print("\n" + "-" * 50)
-print("4. Saving Cleaned Output Files")
-print("-" * 50)
+print("\n--- Performing Train-Test Split ---")
 
-# Save the unscaled cleaned CSV for EDA and tree models (Decision Tree, Random Forest)
-unscaled_filename = 'cleaned_heart_disease.csv'
-df.to_csv(unscaled_filename, index=False)
-print(f"✅ Saved unscaled clean dataset as: '{unscaled_filename}'")
+# train test split into 80% training and 20% testing
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.20, random_state=42, stratify=y
+)
 
-# Create a scaled copy for distance-based models (Logistic Regression, KNN)
-df_scaled = df.copy()
+print(f"Training set size: {X_train.shape[0]} rows")
+print(f"Testing set size:  {X_test.shape[0]} rows")
+print("\nTarget Class Distribution (Train):")
+print(y_train.value_counts(normalize=True))
+
+#standardize the numerical features to have a mean of 0 and a standard deviation of 1
+print("\n--- Performing Feature Scaling  ---")
+
 scaler = StandardScaler()
 
-features_to_scale = ['Age', 'Blood Pressure', 'Cholesterol Level', 'BMI', 
-                     'Sleep Hours', 'Triglyceride Level', 'Fasting Blood Sugar', 
-                     'CRP Level', 'Homocysteine Level']
+# make copies of the training and testing sets to avoid modifying the original data
+X_train_scaled = X_train.copy()
+X_test_scaled = X_test.copy()
 
-df_scaled[features_to_scale] = scaler.fit_transform(df_scaled[features_to_scale])
 
-scaled_filename = 'scaled_cleaned_heart_disease.csv'
-df_scaled.to_csv(scaled_filename, index=False)
-print(f"✅ Saved scaled clean dataset as: '{scaled_filename}'")
+# calculate the mean and standard deviation and scale the training set
+X_train_scaled[num_cols] = scaler.fit_transform(X_train[num_cols])
+# we use transform to prevent data leakage 
+X_test_scaled[num_cols] = scaler.transform(X_test[num_cols])
 
-print("\n" + "=" * 60)
-print("  PREPROCESSING COMPLETED SUCCESSFULLY!")
-print("=" * 60)
+print("Numerical features successfully scaled using StandardScaler.")
+
+# save preprocessed datasets for modeling stage
+# index=False to avoid saving the index column in the CSV files
+# for training
+X_train_scaled.to_csv('X_train_preprocessed.csv', index=False)
+# for testing
+X_test_scaled.to_csv('X_test_preprocessed.csv', index=False)
+# for target variable = got answer for training dataset
+y_train.to_csv('y_train.csv', index=False)
+# for target variable = got answer for testing dataset
+y_test.to_csv('y_test.csv', index=False)
+# save the full preprocessed dataset for future reference 
+df.to_csv('heart_disease_cleaned_full.csv', index=False)
+
+print("\nPreprocessing Completed !")
