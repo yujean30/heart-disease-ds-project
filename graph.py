@@ -78,20 +78,27 @@ plt.savefig("graph_4_boxplot_cholesterol.png")
 plt.show()
 
 # -------------------------------------------------------------------------
-# GRAPH 5: Split Violin Plot (BMI by Gender & Target Variable)
+# GRAPH 5: Split Violin Plot (BMI by Category & Heart Disease Status)
 # -------------------------------------------------------------------------
+df["BMI_Category"] = pd.cut(
+    df["BMI"],
+    bins=[0, 18.5, 24.9, 29.9, df["BMI"].max()],
+    labels=["Underweight", "Normal", "Overweight", "Obese"]
+)
+
 plt.figure(figsize=(8, 5))
 sns.violinplot(
     data=df,
-    x="Gender",
+    x="BMI_Category",
     y="BMI",
     hue="Heart Disease Status",
     split=True,
     inner="quartile",
-    palette="muted",
+    palette={"No": "#2ecc71", "Yes": "#e74c3c"}
 )
-plt.title("Graph 5: BMI Multimodal Distribution across Gender & Disease Status")
+plt.title("Graph 5: BMI Distribution by Category and Heart Disease Status")
 plt.ylabel("Body Mass Index (BMI)")
+plt.xlabel("BMI Category")
 plt.tight_layout()
 plt.savefig("graph_5_violin_bmi.png")
 plt.show()
@@ -101,35 +108,32 @@ plt.show()
 # -------------------------------------------------------------------------
 plt.figure(figsize=(8, 5))
 sns.countplot(
-    data=df, x="Exercise Habits", hue="Heart Disease Status", palette="Set1"
+    data=df, x="Exercise Habits", hue="Heart Disease Status", palette={"No": "#2ecc71", "Yes": "#e74c3c"}
 )
 plt.title("Graph 6: Impact of Physical Activity Level on Heart Disease")
 plt.xlabel("Exercise Activity Level")
-plt.ylabel("Frequency")
+plt.ylabel("Count")
 plt.tight_layout()
 plt.savefig("graph_6_grouped_bar_exercise.png")
 plt.show()
 
 # -------------------------------------------------------------------------
-# GRAPH 7: 100% Stacked Bar Chart (Age Binned Risk Multiplier)
+# GRAPH 7: Stacked Bar Chart (Age Binned Risk Multiplier)
 # -------------------------------------------------------------------------
 df["Age_Group"] = pd.cut(
     df["Age"],
     bins=[18, 35, 50, 65, 80],
-    labels=["18-35", "36-50", "51-65", "66-80"],
+    labels=["18-35", "36-50", "51-65", "66-80"]
 )
-age_hd = (
-    pd.crosstab(df["Age_Group"], df["Heart Disease Status"], normalize="index")
-    * 100
-)
+age_hd = pd.crosstab(df["Age_Group"], df["Heart Disease Status"])
 
 fig, ax = plt.subplots(figsize=(8, 5))
 age_hd.plot(
     kind="bar", stacked=True, color=["#2ecc71", "#e74c3c"], ax=ax, width=0.6
 )
-plt.title("Graph 7: Age Group Risk Proportion (100% Stacked)")
-plt.ylabel("Percentage (%)")
-plt.xlabel("Age Bracket")
+plt.title("Graph 7: Age Group Risk Proportion")
+plt.ylabel("Count")
+plt.xlabel("Age Group")
 plt.legend(title="Heart Disease")
 plt.tight_layout()
 plt.savefig("graph_7_stacked_age_risk.png")
