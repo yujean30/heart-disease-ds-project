@@ -17,6 +17,16 @@ if 'Stress Level' not in df.columns:
 if 'Alcohol Consumption' not in df.columns:
     df['Alcohol Consumption'] = pd.qcut(df['CRP Level'], q=3, labels=['Low', 'Medium', 'High'])
 
+# Bin CRP Level into Alcohol Consumption categories
+conditions = [
+    df['CRP Level'] >= 3.2,
+    (df['CRP Level'] >= 1.5) & (df['CRP Level'] < 3.2),
+    df['CRP Level'] < 1.5
+]
+choices = ['Low', 'Medium', 'High']
+
+df['Alcohol Consumption'] = np.select(conditions, choices, default='Medium')
+
 # 3. Derive clinical flags for Graph 9
 if 'Smoking' not in df.columns:
     df['Smoking'] = (df['Homocysteine Level'] > df['Homocysteine Level'].median()).astype(int)
@@ -33,16 +43,6 @@ risk_cols = ['Smoking', 'High Blood Pressure', 'Low HDL Cholesterol', 'High LDL 
 prev_data = [{'Risk Factor': col, 'Prevalence (%)': df[col].mean() * 100} for col in risk_cols]
 risk_df = pd.DataFrame(prev_data).sort_values(by='Prevalence (%)', ascending=False)
 
-# 4. Bin CRP Level into Alcohol Consumption categories
-conditions = [
-    df['CRP Level'] >= 3.2,
-    (df['CRP Level'] >= 1.5) & (df['CRP Level'] < 3.2),
-    df['CRP Level'] < 1.5
-]
-choices = ['Low', 'Medium', 'High']
-
-df['Alcohol Consumption'] = np.select(conditions, choices, default='Medium')
-
 # ==============================================================================
 # Graph 9: Overall Population Prevalence of Clinical Risk Factors
 # ==============================================================================
@@ -52,7 +52,7 @@ sns.barplot(
     data=risk_df,
     x='Prevalence (%)',
     y='Risk Factor',
-    hue='Risk Factor',  # <-- Add hue parameter to map colors explicitly
+    hue='Risk Factor', 
     palette='rocket'
 )
 
@@ -114,8 +114,6 @@ plt.show()
 # ==============================================================================
 # Graph 12: Inflammatory Marker (CRP Level) across Alcohol Habits
 # ==============================================================================
-
-
 plt.figure(figsize=(8, 4.5))
 
 sns.stripplot(
