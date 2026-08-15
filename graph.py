@@ -1,3 +1,10 @@
+# this is coding is for refer purpose only, not for production use
+# yu jean do 1 to 4 graph
+# wei ching do 5 to 8 graph
+# mei yi do 9 to 12 graph
+# huxley do 13 to 16 graph
+# if all done do the file inside the graph folder, and can delete this graph.py file
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
