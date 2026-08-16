@@ -15,7 +15,7 @@ plt.rcParams.update({"font.size": 10})
 df = pd.read_csv("heart_disease_cleaned_full.csv")
 df.columns = df.columns.str.strip()
 
-# Helper function for fuzzy column matching (handles spaces, underscores, and lowercase)
+# Helper function for fuzzy column matching
 def find_column(df_cols, keywords):
     cols_normalized = {col: col.lower().replace(" ", "").replace("_", "") for col in df_cols}
     for kw in keywords:
@@ -27,18 +27,22 @@ def find_column(df_cols, keywords):
 
 # Resolve column names dynamically
 exercise_col = find_column(df.columns, ["exercise", "activity", "habit"])
-target_col   = find_column(df.columns, ["heartdisease", "status", "disease", "target"])
+target_col   = find_column(df.columns, ["heartdisease", "status", "target"])  # simplified keywords
 bmi_col      = find_column(df.columns, ["bmi", "bodymass"])
 age_col      = find_column(df.columns, ["age"])
 bp_col       = find_column(df.columns, ["bloodpressure", "bp"])
 chol_col     = find_column(df.columns, ["cholesterol", "chol"])
 
+# Force target to be Heart Disease Status if available
+if "Heart Disease Status" in df.columns:
+    target_col = "Heart Disease Status"
+
 print(f"Detected columns -> Target: '{target_col}', Exercise: '{exercise_col}', BMI: '{bmi_col}'")
 
-# Setup dynamic palette matching target data type
+# --- Fix palette setup ---
 color_list = ["#2ecc71", "#e74c3c"]
 if target_col and target_col in df.columns:
-    unique_targets = sorted(df[target_col].unique())
+    unique_targets = df[target_col].astype(str).unique()  # avoid mixed-type sorting
     palette = {val: color_list[i % len(color_list)] for i, val in enumerate(unique_targets)}
 else:
     raise KeyError(f"Target column for heart disease status could not be found. Available columns: {list(df.columns)}")
@@ -138,4 +142,4 @@ if bp_col and chol_col and bp_col in df.columns and chol_col in df.columns:
 else:
     print("Skipping Graph 8: Blood Pressure or Cholesterol column not found.")
 
-print("Execution finished! Generated charts are saved in the 'Graph' directory.")
+print("Execution finished! Generated charts are saved in the 'Graph2' directory.")
