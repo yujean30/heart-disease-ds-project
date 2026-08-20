@@ -4,112 +4,12 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
+# Load dataset
+df = pd.read_csv("heart_disease_cleaned_full.csv")
+
 # Ensure the "Graph" output folder exists
 output_dir = "Graph"
 os.makedirs(output_dir, exist_ok=True)
-
-# Set global aesthetic theme for publication-quality visuals
-sns.set_theme(style="whitegrid")
-plt.rcParams.update(
-    {
-        "font.size": 11,
-        "axes.titlesize": 13,
-        "axes.labelsize": 11,
-        "xtick.labelsize": 10,
-        "ytick.labelsize": 10,
-        "figure.autolayout": True,
-    }
-)
-
-# STEP 1: GENERATE REALISTIC CLINICAL DATASET
-np.random.seed(42)
-n = 10000
-
-# Target class: 80% No Heart Disease, 20% Yes Heart Disease
-heart_disease = np.random.choice(["No", "Yes"], size=n, p=[0.8, 0.2])
-is_hd = (heart_disease == "Yes").astype(int)
-
-# Synthesize correlated clinical attributes based on medical research
-age = (
-    np.random.normal(loc=46 + 12 * is_hd, scale=11, size=n).clip(18, 80).round()
-)
-cholesterol = (
-    np.random.normal(
-        loc=205 + 40 * is_hd + 0.5 * (age - 45), scale=35, size=n
-    )
-    .clip(130, 380)
-    .round()
-)
-systolic_bp = (
-    np.random.normal(
-        loc=120 + 18 * is_hd + 0.4 * (age - 45), scale=15, size=n
-    )
-    .clip(90, 200)
-    .round()
-)
-bmi = (
-    np.random.normal(
-        loc=25.5 + 4.5 * is_hd + 0.05 * (age - 45), scale=4.5, size=n
-    )
-    .clip(16, 48)
-    .round(1)
-)
-fbs = (
-    np.random.normal(
-        loc=100 + 25 * is_hd + 0.2 * (bmi - 25), scale=20, size=n
-    )
-    .clip(70, 220)
-    .round()
-)
-triglycerides = (
-    np.random.normal(
-        loc=140
-        + 50 * is_hd
-        + 1.2 * (bmi - 25)
-        + 0.3 * (cholesterol - 200),
-        scale=45,
-        size=n,
-    )
-    .clip(70, 450)
-    .round()
-)
-crp = (
-    np.random.normal(
-        loc=1.8 + 3.5 * is_hd + 0.08 * (bmi - 25), scale=1.5, size=n
-    )
-    .clip(0.1, 15.0)
-    .round(2)
-)
-homocysteine = (
-    np.random.normal(
-        loc=9.5 + 4.0 * is_hd + 0.05 * (age - 45), scale=2.5, size=n
-    )
-    .clip(3.0, 25.0)
-    .round(2)
-)
-sleep_hours = (
-    np.random.normal(loc=7.2 - 0.8 * is_hd, scale=1.1, size=n)
-    .clip(3.0, 10.0)
-    .round(1)
-)
-
-# Save updated dataset
-df = pd.DataFrame(
-    {
-        "Age": age,
-        "Blood Pressure": systolic_bp,
-        "Cholesterol Level": cholesterol,
-        "BMI": bmi,
-        "Sleep Hours": sleep_hours,
-        "Triglyceride Level": triglycerides,
-        "Fasting Blood Sugar": fbs,
-        "CRP Level": crp,
-        "Homocysteine Level": homocysteine,
-        "Heart Disease Status": heart_disease,
-    }
-)
-df.to_csv("heart_disease_cleaned_full.csv", index=False)
-
 
 # GRAPH 1: Target Class Ratio (Heart Disease Status - Donut Chart)
 fig, ax = plt.subplots(figsize=(6, 6))
@@ -228,3 +128,5 @@ plt.savefig(
     bbox_inches="tight",
 )
 plt.close()
+
+print("All graphs generated successfully.")
