@@ -109,7 +109,7 @@ def main():
     joblib.dump(scaler, ROOT / 'shared_scaler.pkl')
     df.to_csv(ROOT / 'heart_disease_cleaned_full.csv', index=False)
 
-    print("\n✅ PREPROCESSING COMPLETED")
+    print("\nPREPROCESSING COMPLETED")
 
 if __name__ == '__main__':
     main()

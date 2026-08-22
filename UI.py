@@ -5,6 +5,7 @@ import joblib
 import os
 from PIL import Image
 import random
+from SVM_Model.SVM import SVMXGBHybrid
 
 # ---------------------------------------------------------
 # 1. Page Configuration
@@ -40,34 +41,59 @@ def load_rf_artifacts():
         st.error("Random Forest model or scaler missing!")
         return None, None
 
+@st.cache_resource
+def load_svm_artifacts():
+    model_path = 'SVM_Model/best_svm_xgb_hybrid_model.joblib'
+    scaler_path = 'shared_scaler.pkl'
+    if os.path.exists(model_path) and os.path.exists(scaler_path):
+        return joblib.load(model_path), joblib.load(scaler_path)
+    return None, None
+
 lr_model, lr_scaler = load_baseline_artifacts()
 rf_model, rf_scaler = load_rf_artifacts()
+svm_model, svm_scaler = load_svm_artifacts()
 
 # ---------------------------------------------------------
 # 3. Model Selection
 # ---------------------------------------------------------
 st.write("### Select Prediction Model")
-model_choice = st.selectbox("Choose a model:", ["Logistic Regression (Baseline)", "Random Forest"])
+model_choice = st.selectbox(
+    "Choose a model:",
+    ["Logistic Regression (Baseline)", "Random Forest", "SVM"]
+)
 
 if model_choice == "Logistic Regression (Baseline)":
     model, scaler = lr_model, lr_scaler
     metrics_path = 'logistic_regression_model/lr_baseline_metrics.csv'
     cm_path = 'logistic_regression_model/lr_confusion_matrix.png'
     roc_path = 'logistic_regression_model/lr_roc_curve.png'
-else:
+    decision_threshold = 0.5
+elif model_choice == "Random Forest":
     model, scaler = rf_model, rf_scaler
     metrics_path = 'random_forest_model/rf_metrics.csv'
     cm_path = 'random_forest_model/rf_confusion_matrix.png'
     roc_path = 'random_forest_model/rf_roc_curve.png'
+    decision_threshold = 0.5
+else:
+    model, scaler = svm_model, svm_scaler
+    metrics_path = 'SVM_Model/svm_xgb_metrics.csv'
+    cm_path = 'SVM_Model/svm_xgb_confusion_matrix.png'
+    roc_path = 'SVM_Model/svm_xgb_roc_curve.png'
+    threshold_path = 'SVM_Model/svm_xgb_decision_threshold.joblib'
+    decision_threshold = joblib.load(threshold_path) if os.path.exists(threshold_path) else 0.5
+    if model is None:
+        st.warning("SVM model file is missing. Run the SVM training script to enable SVM predictions.")
 
 # ---------------------------------------------------------
 # 3b. Model Comparison Section (Simplified) — moved above tabs
 # ---------------------------------------------------------
 st.markdown("---")
-st.write("## 📊 Model Comparison: Logistic Regression vs Random Forest")
+st.write("## 📊 Model Comparison")
 
+display_metric_columns = ["Accuracy", "Precision", "Recall", "F1-Score", "ROC-AUC"]
 lr_metrics_path = 'logistic_regression_model/lr_baseline_metrics.csv'
 rf_metrics_path = 'random_forest_model/rf_metrics.csv'
+svm_metrics_path = 'SVM_Model/svm_xgb_metrics.csv'
 
 if os.path.exists(lr_metrics_path) and os.path.exists(rf_metrics_path):
     df_lr = pd.read_csv(lr_metrics_path)
@@ -76,8 +102,15 @@ if os.path.exists(lr_metrics_path) and os.path.exists(rf_metrics_path):
     df_lr['Model'] = 'Logistic Regression'
     df_rf['Model'] = 'Random Forest'
 
+    comparison_frames = [df_lr, df_rf]
+    if os.path.exists(svm_metrics_path):
+        df_svm = pd.read_csv(svm_metrics_path)
+        df_svm['Model'] = 'SVM'
+        comparison_frames.append(df_svm)
+
     # Combine and reset index properly
-    df_compare = pd.concat([df_lr, df_rf], ignore_index=True)
+    df_compare = pd.concat(comparison_frames, ignore_index=True)
+    df_compare = df_compare[["Model", *display_metric_columns]]
 
     # Identify best model by F1-Score
     best_model_idx = df_compare['F1-Score'].idxmax()
@@ -170,14 +203,12 @@ with tab1:
             input_df[num_cols] = scaler.transform(input_df[num_cols])
 
             probability = model.predict_proba(input_df)[0][1]
-            prediction = model.predict(input_df)[0]
-
             st.markdown(f"### Diagnosis Result ({model_choice})")
             res_col1, res_col2 = st.columns(2)
             with res_col1:
                 st.metric(label="Calculated Disease Probability", value=f"{probability * 100:.1f}%")
             with res_col2:
-                if prediction == 1 or probability >= 0.5:
+                if probability >= decision_threshold:
                     st.error("⚠️ **HIGH RISK**: Patient shows symptoms/risk patterns for Heart Disease.")
                 else:
                     st.success("✅ **LOW RISK**: Patient is unlikely to have Heart Disease.")
@@ -190,7 +221,11 @@ with tab2:
 
     if os.path.exists(metrics_path):
         df_metrics = pd.read_csv(metrics_path)
-        st.dataframe(df_metrics, width="stretch")
+        available_metrics = [
+            column for column in display_metric_columns
+            if column in df_metrics.columns
+        ]
+        st.dataframe(df_metrics[available_metrics], width="stretch")
 
     col_img1, col_img2 = st.columns(2)
     with col_img1:
@@ -303,10 +338,10 @@ with tab3:
 
         # Predict
         df_low['Predicted Probability'] = model.predict_proba(scaled_low)[:, 1]
-        df_low['Predicted Risk'] = np.where(df_low['Predicted Probability'] >= 0.5, "High Risk", "Low Risk")
+        df_low['Predicted Risk'] = np.where(df_low['Predicted Probability'] >= decision_threshold, "High Risk", "Low Risk")
 
         df_high['Predicted Probability'] = model.predict_proba(scaled_high)[:, 1]
-        df_high['Predicted Risk'] = np.where(df_high['Predicted Probability'] >= 0.5, "High Risk", "Low Risk")
+        df_high['Predicted Risk'] = np.where(df_high['Predicted Probability'] >= decision_threshold, "High Risk", "Low Risk")
 
         # Filter mismatched predictions
         df_low = df_low[df_low['Predicted Risk'] == 'Low Risk']

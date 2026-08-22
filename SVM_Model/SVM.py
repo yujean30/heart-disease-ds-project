@@ -251,6 +251,16 @@ def main():
     print("Supporting algorithm : XGBoost")
     print("Combination method   : Weighted Soft Voting")
 
+    print("\nBEFORE TUNING: HYBRID MODEL RESULTS")
+    baseline_model = Pipeline([
+        ("smote", create_smote(X_train)),
+        ("hybrid", SVMXGBHybrid())
+    ])
+    baseline_model.fit(X_train, y_train)
+    baseline_probas = baseline_model.predict_proba(X_test)[:, 1]
+    baseline_metrics, _ = calculate_metrics(y_test, baseline_probas, 0.50)
+    print(pd.DataFrame([baseline_metrics]).to_string(index=False))
+
     cv = StratifiedKFold(
         n_splits=5,
         shuffle=True,
@@ -272,7 +282,7 @@ def main():
         "hybrid__xgb_weight": [1, 2, 3]
     }
 
-    print("\nSTARTING HYBRID SVM + XGBOOST TRAINING")
+    print("\nTUNING HYBRID MODEL")
     print("Searching SVM + XGBoost parameters...")
 
     search = RandomizedSearchCV(
@@ -329,25 +339,25 @@ def main():
         index=False
     )
 
-    print("\nFINAL TEST EVALUATION")
+    print("\nAFTER TUNING: HYBRID MODEL RESULTS")
 
     test_probas = best_model.predict_proba(X_test)[:, 1]
-
-    default_metrics, default_pred = calculate_metrics(
-        y_test, test_probas, 0.50
-    )
 
     tuned_metrics, tuned_pred = calculate_metrics(
         y_test, test_probas, decision_threshold
     )
 
-    print("\nDefault threshold = 0.50")
-    for name, value in default_metrics.items():
-        print(f"{name:<10}: {value:.4f}")
-
+    tuning_comparison = pd.DataFrame([
+        {"Stage": "Before Tuning", **baseline_metrics},
+        {"Stage": "After Tuning", **tuned_metrics}
+    ])
     print(f"\nTuned threshold = {decision_threshold:.4f}")
-    for name, value in tuned_metrics.items():
-        print(f"{name:<10}: {value:.4f}")
+    print("\nTUNING COMPARISON")
+    print(tuning_comparison.to_string(index=False))
+    tuning_comparison.to_csv(
+        OUTPUT_DIR / "svm_tuning_comparison.csv",
+        index=False
+    )
 
     y_pred = tuned_pred
     metrics = tuned_metrics
@@ -371,6 +381,9 @@ def main():
         OUTPUT_DIR / "svm_xgb_metrics.csv",
         index=False
     )
+
+    print("\nFINAL OVERALL RESULT")
+    print(pd.DataFrame([tuned_metrics]).to_string(index=False))
 
     joblib.dump(
         best_model,
@@ -479,6 +492,7 @@ def main():
     print("- best_svm_xgb_hybrid_model.joblib")
     print("- svm_xgb_decision_threshold.joblib")
     print("- svm_xgb_metrics.csv")
+    print("- svm_tuning_comparison.csv")
     print("- svm_xgb_threshold_comparison.csv")
     print("- svm_xgb_threshold_metrics.png")
     print("- svm_xgb_confusion_matrix.png")
