@@ -39,9 +39,42 @@ if 'High LDL Cholesterol' not in df.columns:
 if 'Low HDL Cholesterol' not in df.columns:
     df['Low HDL Cholesterol'] = (df['Cholesterol Level'] < 200).astype(int)
 
-risk_cols = ['Smoking', 'High Blood Pressure', 'Low HDL Cholesterol', 'High LDL Cholesterol', 'Diabetes']
-prev_data = [{'Risk Factor': col, 'Prevalence (%)': df[col].mean() * 100} for col in risk_cols]
-risk_df = pd.DataFrame(prev_data).sort_values(by='Prevalence (%)', ascending=False)
+risk_cols = [
+    'Smoking',
+    'High Blood Pressure',
+    'Low HDL Cholesterol',
+    'High LDL Cholesterol',
+    'Diabetes'
+]
+
+# Convert Yes/No values to 1/0 if necessary
+for col in risk_cols:
+    if df[col].dtype == 'object' or str(df[col].dtype).startswith('string'):
+        df[col] = df[col].map({
+            'Yes': 1,
+            'No': 0,
+            'yes': 1,
+            'no': 0,
+            'Y': 1,
+            'N': 0,
+            'True': 1,
+            'False': 0
+        })
+
+    df[col] = pd.to_numeric(df[col], errors='coerce')
+
+prev_data = [
+    {
+        'Risk Factor': col,
+        'Prevalence (%)': df[col].mean() * 100
+    }
+    for col in risk_cols
+]
+
+risk_df = pd.DataFrame(prev_data).sort_values(
+    by='Prevalence (%)',
+    ascending=False
+)
 
 # ==============================================================================
 # Graph 9: Overall Population Prevalence of Clinical Risk Factors
