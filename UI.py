@@ -61,12 +61,47 @@ else:
     roc_path = 'random_forest_model/rf_roc_curve.png'
 
 # ---------------------------------------------------------
-# 4. Tabs for Prediction, Metrics, and Samples
+# 3b. Model Comparison Section (Simplified) — moved above tabs
 # ---------------------------------------------------------
-tab1, tab2, tab3 = st.tabs([
+st.markdown("---")
+st.write("## 📊 Model Comparison: Logistic Regression vs Random Forest")
+
+lr_metrics_path = 'logistic_regression_model/lr_baseline_metrics.csv'
+rf_metrics_path = 'random_forest_model/rf_metrics.csv'
+
+if os.path.exists(lr_metrics_path) and os.path.exists(rf_metrics_path):
+    df_lr = pd.read_csv(lr_metrics_path)
+    df_rf = pd.read_csv(rf_metrics_path)
+
+    df_lr['Model'] = 'Logistic Regression'
+    df_rf['Model'] = 'Random Forest'
+
+    # Combine and reset index properly
+    df_compare = pd.concat([df_lr, df_rf], ignore_index=True)
+
+    # Identify best model by F1-Score
+    best_model_idx = df_compare['F1-Score'].idxmax()
+    best_model_name = df_compare.loc[best_model_idx, 'Model']
+
+    # Display plain table (no highlight)
+    st.write("### Model Comparison Table")
+    st.dataframe(df_compare, width="stretch")
+
+    # Display result summary
+    st.success(f"✅ Based on F1-Score, **{best_model_name}** performs better overall.")
+else:
+    st.info("Comparison metrics not available yet. Please ensure both models have metrics CSV files saved.")
+
+st.markdown("---")
+
+# ---------------------------------------------------------
+# 4. Tabs for Prediction, Metrics, Samples, and EDA
+# ---------------------------------------------------------
+tab1, tab2, tab3, tab_eda = st.tabs([
     "📋 Patient Assessment (Predictor)",
     "📊 Model Performance Metrics",
-    "🧪 Auto‑Generated Samples"
+    "🧪 Auto‑Generated Samples",
+    "🔬 EDA"
 ])
 
 # ---------------------------------------------------------
@@ -238,7 +273,7 @@ with tab3:
         df_low = generate_sample("Low Risk")[feature_order]
         df_high = generate_sample("High Risk")[feature_order]
 
-        # ✅ Validation: clip values to realistic ranges
+        # Validation: clip values to realistic ranges
         valid_ranges = {
             'Age': (18, 100),
             'Blood Pressure': (80, 220),
@@ -307,33 +342,84 @@ with tab3:
         st.success("✅ Synthetic samples generated and validated successfully.")
 
 # ---------------------------------------------------------
-# 7. Comparison Section (Simplified)
+# TAB 4: EDA
 # ---------------------------------------------------------
-st.markdown("---")
-st.write("## 📊 Model Comparison: Logistic Regression vs Random Forest")
+with tab_eda:
+    st.write("### 🔬 Exploratory Data Analysis")
 
-lr_metrics_path = 'logistic_regression_model/lr_baseline_metrics.csv'
-rf_metrics_path = 'random_forest_model/rf_metrics.csv'
+    if "df_eda" not in st.session_state:
+        st.session_state.df_eda = None
 
-if os.path.exists(lr_metrics_path) and os.path.exists(rf_metrics_path):
-    df_lr = pd.read_csv(lr_metrics_path)
-    df_rf = pd.read_csv(rf_metrics_path)
+    # FIXED: Added directly relative path since CSV is alongside UI.py
+    candidate_paths = [
+        "heart_disease_cleaned_full.csv",
+    ]
+    auto_path = next((p for p in candidate_paths if os.path.exists(p)), None)
 
-    df_lr['Model'] = 'Logistic Regression'
-    df_rf['Model'] = 'Random Forest'
+    # Automatically load default CSV on initial page load or browser refresh
+    if st.session_state.df_eda is None and auto_path is not None:
+        st.session_state.df_eda = pd.read_csv(auto_path)
 
-    # Combine and reset index properly
-    df_compare = pd.concat([df_lr, df_rf], ignore_index=True)
+    uploaded_file = st.file_uploader("Or upload a dataset CSV", type=["csv"])
 
-    # Identify best model by F1-Score
-    best_model_idx = df_compare['F1-Score'].idxmax()
-    best_model_name = df_compare.loc[best_model_idx, 'Model']
+    if uploaded_file is not None:
+        st.session_state.df_eda = pd.read_csv(uploaded_file)
 
-    # Display plain table (no highlight)
-    st.write("### Model Comparison Table")
-    st.dataframe(df_compare, width="stretch")
+    df_eda = st.session_state.df_eda
 
-    # Display result summary
-    st.success(f"✅ Based on F1-Score, **{best_model_name}** performs better overall.")
-else:
-    st.info("Comparison metrics not available yet. Please ensure both models have metrics CSV files saved.")
+    if df_eda is not None:
+        if uploaded_file is None and auto_path is not None:
+            st.caption(f"Using default dataset loaded from local path: `{auto_path}`")
+            
+        st.write(f"**Shape:** {df_eda.shape[0]} rows × {df_eda.shape[1]} columns")
+
+        st.write("#### Data Preview")
+        st.dataframe(df_eda.head(20), width="stretch")
+
+        st.write("#### Summary Statistics")
+        st.dataframe(df_eda.describe(include="all").transpose(), width="stretch")
+
+        st.write("#### Missing Values")
+        missing = df_eda.isnull().sum()
+        missing = missing[missing > 0]
+        if missing.empty:
+            st.success("No missing values detected.")
+        else:
+            st.dataframe(
+                missing.rename("Missing Count"),
+                column_config={
+                    "Missing Count": st.column_config.NumberColumn(
+                        "Missing Count", alignment="left"
+                    )
+                },
+                use_container_width=True,
+            )
+
+    numeric_cols = df_eda.select_dtypes(include=[np.number]).columns.tolist()
+    if numeric_cols:
+        st.write("#### Feature Distribution")
+        dist_col = st.selectbox("Select a numeric feature to view its distribution", numeric_cols)
+
+        # 1. Use 6 to 8 bins max for clean visual grouping
+        num_bins = 6
+        min_val = df_eda[dist_col].min()
+        max_val = df_eda[dist_col].max()
+
+        # 2. Compute histogram with whole number rounded bin edges
+        counts, bin_edges = np.histogram(df_eda[dist_col].dropna(), bins=num_bins)
+        
+        # 3. Format edges into clean integer ranges (e.g., "18 - 28", "28 - 38")
+        bin_labels = [
+            f"{int(round(bin_edges[i]))} - {int(round(bin_edges[i+1]))}" 
+            for i in range(len(bin_edges)-1)
+        ]
+
+        # 4. Render clean bar chart
+        chart_data = pd.DataFrame({
+            "Range": bin_labels,
+            "Count": counts
+        }).set_index("Range")
+
+        st.bar_chart(chart_data)
+    else:
+        st.info("No dataset found automatically — upload a CSV above to run EDA.")
