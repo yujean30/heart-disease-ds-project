@@ -1,0 +1,2 @@
+Model,Accuracy,Precision,Recall,F1-Score,ROC-AUC
+Logistic Regression (Baseline),0.498,0.18541666666666667,0.445,0.26176470588235295,0.48095156250000004

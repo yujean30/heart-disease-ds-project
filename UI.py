@@ -49,9 +49,21 @@ def load_svm_artifacts():
         return joblib.load(model_path), joblib.load(scaler_path)
     return None, None
 
+@st.cache_resource
+def load_knn_artifacts():
+    model_path = 'KNN_Model/knn_model.joblib'
+    scaler_path = 'KNN_Model/scaler.pkl'
+    if os.path.exists(model_path) and os.path.exists(scaler_path):
+        return joblib.load(model_path), joblib.load(scaler_path)
+    else:
+        st.error("KNN model or scaler missing! Export them from KNN_Heart_Disease_Model.ipynb "
+                  "as 'KNN_Model/knn_model.joblib' and 'KNN_Model/scaler.pkl'.")
+        return None, None
+
 lr_model, lr_scaler = load_baseline_artifacts()
 rf_model, rf_scaler = load_rf_artifacts()
 svm_model, svm_scaler = load_svm_artifacts()
+knn_model, knn_scaler = load_knn_artifacts()
 
 # ---------------------------------------------------------
 # 3. Model Selection
@@ -59,7 +71,7 @@ svm_model, svm_scaler = load_svm_artifacts()
 st.write("### Select Prediction Model")
 model_choice = st.selectbox(
     "Choose a model:",
-    ["Logistic Regression (Baseline)", "Random Forest", "SVM"]
+    ["Logistic Regression (Baseline)", "Random Forest", "SVM", "KNN"]
 )
 
 if model_choice == "Logistic Regression (Baseline)":
@@ -74,6 +86,14 @@ elif model_choice == "Random Forest":
     cm_path = 'random_forest_model/rf_confusion_matrix.png'
     roc_path = 'random_forest_model/rf_roc_curve.png'
     decision_threshold = 0.5
+elif model_choice == "KNN":
+    model, scaler = knn_model, knn_scaler
+    metrics_path = 'KNN_Model/knn_metrics.csv'
+    cm_path = 'KNN_Model/knn_confusion_matrix.png'
+    roc_path = 'KNN_Model/knn_roc_curve.png'
+    decision_threshold = 0.5
+    if model is None:
+        st.warning("KNN model file is missing. Export the trained model/scaler from the notebook to enable KNN predictions.")
 else:
     model, scaler = svm_model, svm_scaler
     metrics_path = 'SVM_Model/svm_xgb_metrics.csv'
@@ -94,6 +114,7 @@ display_metric_columns = ["Accuracy", "Precision", "Recall", "F1-Score", "ROC-AU
 lr_metrics_path = 'logistic_regression_model/lr_baseline_metrics.csv'
 rf_metrics_path = 'random_forest_model/rf_metrics.csv'
 svm_metrics_path = 'SVM_Model/svm_xgb_metrics.csv'
+knn_metrics_path = 'KNN_Model/knn_metrics.csv'
 
 if os.path.exists(lr_metrics_path) and os.path.exists(rf_metrics_path):
     df_lr = pd.read_csv(lr_metrics_path)
@@ -107,6 +128,10 @@ if os.path.exists(lr_metrics_path) and os.path.exists(rf_metrics_path):
         df_svm = pd.read_csv(svm_metrics_path)
         df_svm['Model'] = 'SVM'
         comparison_frames.append(df_svm)
+    if os.path.exists(knn_metrics_path):
+        df_knn = pd.read_csv(knn_metrics_path)
+        df_knn['Model'] = 'KNN'
+        comparison_frames.append(df_knn)
 
     # Combine and reset index properly
     df_compare = pd.concat(comparison_frames, ignore_index=True)

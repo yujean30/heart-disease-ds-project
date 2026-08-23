@@ -12,6 +12,6 @@ scaler = StandardScaler()
 scaler.fit(X_train_raw[num_cols].fillna(X_train_raw[num_cols].median()))
 
 # Save scaler inside your baseline folder
-os.makedirs('logistic_regression_model', exist_ok=True)
-joblib.dump(scaler, 'logistic_regression_model/scaler.pkl')
-print("Scaler saved to 'logistic_regression_model/scaler.pkl'")
+os.makedirs('Logistic_Regression_Model', exist_ok=True)
+joblib.dump(scaler, 'Logistic_Regression_Model/scaler.pkl')
+print("Scaler saved to 'Logistic_Regression_Model/scaler.pkl'")
