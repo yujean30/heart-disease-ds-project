@@ -6,6 +6,8 @@ import os
 from PIL import Image
 import random
 from SVM_Model.SVM import SVMXGBHybrid
+from pathlib import Path
+import plotly.express as px
 
 # ---------------------------------------------------------
 # 1. Page Configuration
@@ -405,81 +407,169 @@ with tab3:
 # TAB 4: EDA
 # ---------------------------------------------------------
 with tab_eda:
-    st.write("### 🔬 Exploratory Data Analysis")
+    st.subheader("Exploratory Data Analysis")
+    st.caption(
+        "A focused view of data quality, disease prevalence, and the features most useful "
+        "for understanding the prediction problem. These associations do not imply causation."
+    )
 
-    if "df_eda" not in st.session_state:
-        st.session_state.df_eda = None
+    TARGET_COL = "Heart Disease Status"
+    DATA_PATH = Path(__file__).resolve().parent / "heart_disease_cleaned_full.csv"
 
-    # FIXED: Added directly relative path since CSV is alongside UI.py
-    candidate_paths = [
-        "heart_disease_cleaned_full.csv",
-    ]
-    auto_path = next((p for p in candidate_paths if os.path.exists(p)), None)
+    @st.cache_data
+    def load_eda_data(path: str) -> pd.DataFrame:
+        data = pd.read_csv(path)
+        data.columns = data.columns.str.strip()
+        return data
 
-    # Automatically load default CSV on initial page load or browser refresh
-    if st.session_state.df_eda is None and auto_path is not None:
-        st.session_state.df_eda = pd.read_csv(auto_path)
+    try:
+        df_eda = load_eda_data(str(DATA_PATH))
+    except FileNotFoundError:
+        st.error("EDA dataset not found. Keep heart_disease_cleaned_full.csv beside UI.py.")
+        st.stop()
 
-    uploaded_file = st.file_uploader("Or upload a dataset CSV", type=["csv"])
+    if TARGET_COL not in df_eda.columns:
+        st.error(f"Expected target column '{TARGET_COL}' was not found in the dataset.")
+        st.stop()
 
-    if uploaded_file is not None:
-        st.session_state.df_eda = pd.read_csv(uploaded_file)
+    # 1. One concise data-quality overview (instead of a large raw-data table).
+    positive_rate = (df_eda[TARGET_COL].astype(str).str.strip() == "Yes").mean() * 100
+    audit_col1, audit_col2, audit_col3, audit_col4 = st.columns(4)
+    audit_col1.metric("Patient records", f"{len(df_eda):,}")
+    audit_col2.metric("Features", df_eda.shape[1] - 1)
+    audit_col3.metric("Missing cells", f"{int(df_eda.isna().sum().sum()):,}")
+    audit_col4.metric("Heart-disease prevalence", f"{positive_rate:.1f}%")
 
-    df_eda = st.session_state.df_eda
-
-    if df_eda is not None:
-        if uploaded_file is None and auto_path is not None:
-            st.caption(f"Using default dataset loaded from local path: `{auto_path}`")
-            
-        st.write(f"**Shape:** {df_eda.shape[0]} rows × {df_eda.shape[1]} columns")
-
-        st.write("#### Data Preview")
-        st.dataframe(df_eda.head(20), width="stretch")
-
-        st.write("#### Summary Statistics")
-        st.dataframe(df_eda.describe(include="all").transpose(), width="stretch")
-
-        st.write("#### Missing Values")
-        missing = df_eda.isnull().sum()
-        missing = missing[missing > 0]
-        if missing.empty:
-            st.success("No missing values detected.")
-        else:
-            st.dataframe(
-                missing.rename("Missing Count"),
-                column_config={
-                    "Missing Count": st.column_config.NumberColumn(
-                        "Missing Count", alignment="left"
-                    )
-                },
-                use_container_width=True,
+    with st.expander("Dataset audit and preview"):
+            missing = (
+                df_eda.isna().sum()
+                .rename("Missing values")
+                .to_frame()
+                .query("`Missing values` > 0")
+                .sort_values("Missing values", ascending=False)
             )
+            st.write(f"Duplicate rows: **{df_eda.duplicated().sum():,}**")
+            if missing.empty:
+                st.success("No missing values detected.")
+            else:
+                st.dataframe(
+                    missing,
+                    column_config={
+                        "Missing values": st.column_config.NumberColumn(
+                            "Missing values",
+                            alignment="left"
+                        )
+                    },
+                    use_container_width=True
+                )
+            st.dataframe(df_eda.head(10), width="stretch")
 
-    numeric_cols = df_eda.select_dtypes(include=[np.number]).columns.tolist()
-    if numeric_cols:
-        st.write("#### Feature Distribution")
-        dist_col = st.selectbox("Select a numeric feature to view its distribution", numeric_cols)
+    st.markdown("#### 1. Outcome balance")
+    target_counts = (
+        df_eda[TARGET_COL]
+        .fillna("Missing")
+        .value_counts()
+        .rename_axis(TARGET_COL)
+        .reset_index(name="Patients")
+    )
+    target_counts["Percentage"] = target_counts["Patients"] / len(df_eda) * 100
+    fig_target = px.bar(
+        target_counts,
+        x=TARGET_COL,
+        y="Patients",
+        color=TARGET_COL,
+        text=target_counts["Percentage"].map("{:.1f}%".format),
+        color_discrete_map={"No": "#2E8B57", "Yes": "#D9534F", "Missing": "#6C757D"},
+        title="Heart Disease Status",
+    )
+    fig_target.update_layout(showlegend=False, yaxis_title="Number of patients")
+    fig_target.update_traces(textposition="outside", cliponaxis=False)
+    st.plotly_chart(fig_target, width="stretch")
+    st.info(
+        "Interpretation: the target is imbalanced, so evaluate models with recall, precision, "
+        "F1-score, and ROC-AUC - not accuracy alone."
+    )
 
-        # 1. Use 6 to 8 bins max for clean visual grouping
-        num_bins = 6
-        min_val = df_eda[dist_col].min()
-        max_val = df_eda[dist_col].max()
+    left, right = st.columns(2)
 
-        # 2. Compute histogram with whole number rounded bin edges
-        counts, bin_edges = np.histogram(df_eda[dist_col].dropna(), bins=num_bins)
-        
-        # 3. Format edges into clean integer ranges (e.g., "18 - 28", "28 - 38")
-        bin_labels = [
-            f"{int(round(bin_edges[i]))} - {int(round(bin_edges[i+1]))}" 
-            for i in range(len(bin_edges)-1)
+    # 2. Show one clinically meaningful numeric distribution at a time.
+    with left:
+        st.markdown("#### 2. Numeric feature by outcome")
+        preferred_numeric = [
+            "Age", "Blood Pressure", "Cholesterol Level", "BMI",
+            "Fasting Blood Sugar", "Triglyceride Level", "CRP Level",
         ]
+        numeric_choices = [c for c in preferred_numeric if c in df_eda.columns]
+        numeric_feature = st.selectbox(
+            "Clinical measure", numeric_choices, key="eda_numeric_feature"
+        )
+        fig_numeric = px.histogram(
+            df_eda.dropna(subset=[numeric_feature, TARGET_COL]),
+            x=numeric_feature,
+            color=TARGET_COL,
+            barmode="overlay",
+            opacity=0.60,
+            nbins=25,
+            color_discrete_map={"No": "#2E8B57", "Yes": "#D9534F"},
+            title=f"Distribution of {numeric_feature}",
+        )
+        fig_numeric.update_layout(legend_title_text="Heart disease")
+        st.plotly_chart(fig_numeric, width="stretch")
 
-        # 4. Render clean bar chart
-        chart_data = pd.DataFrame({
-            "Range": bin_labels,
-            "Count": counts
-        }).set_index("Range")
+    # 3. Compare disease rates, rather than counts, across a categorical risk factor.
+    with right:
+        st.markdown("#### 3. Disease rate by risk factor")
+        preferred_categorical = [
+            "Exercise Habits", "Smoking", "Diabetes", "Family Heart Disease",
+            "High Blood Pressure", "Stress Level", "Alcohol Consumption",
+        ]
+        categorical_choices = [c for c in preferred_categorical if c in df_eda.columns]
+        category_feature = st.selectbox(
+            "Risk factor", categorical_choices, key="eda_category_feature"
+        )
+        rate_data = df_eda[[category_feature, TARGET_COL]].dropna().copy()
+        rate_data["Disease rate (%)"] = (
+            rate_data[TARGET_COL].astype(str).str.strip().eq("Yes").astype(int)
+        )
+        rate_data = (
+            rate_data.groupby(category_feature, as_index=False)["Disease rate (%)"]
+            .mean()
+            .assign(**{"Disease rate (%)": lambda x: x["Disease rate (%)"] * 100})
+            .sort_values("Disease rate (%)", ascending=False)
+        )
+        fig_rate = px.bar(
+            rate_data,
+            x=category_feature,
+            y="Disease rate (%)",
+            text=rate_data["Disease rate (%)"].map("{:.1f}%".format),
+            color_discrete_sequence=["#D9534F"],
+            title=f"Heart-disease rate by {category_feature}",
+        )
+        fig_rate.update_traces(textposition="outside", cliponaxis=False)
+        fig_rate.update_layout(yaxis_range=[0, min(100, rate_data["Disease rate (%)"].max() + 8)])
+        st.plotly_chart(fig_rate, width="stretch")
 
-        st.bar_chart(chart_data)
-    else:
-        st.info("No dataset found automatically — upload a CSV above to run EDA.")
+    # 4. A small correlation matrix is more readable than an all-feature heatmap.
+    st.markdown("#### 4. Relationships among core clinical measures")
+    correlation_features = [
+        "Age", "Blood Pressure", "Cholesterol Level", "BMI", "Sleep Hours",
+        "Triglyceride Level", "Fasting Blood Sugar", "CRP Level", "Homocysteine Level",
+    ]
+    correlation_features = [c for c in correlation_features if c in df_eda.columns]
+    corr = df_eda[correlation_features].corr(numeric_only=True).round(2)
+    fig_corr = px.imshow(
+        corr,
+        text_auto=True,
+        color_continuous_scale="RdBu_r",
+        zmin=-1,
+        zmax=1,
+        aspect="auto",
+        title="Pearson correlation matrix (numeric clinical features)",
+    )
+    fig_corr.update_layout(coloraxis_colorbar_title="Correlation")
+    st.plotly_chart(fig_corr, width="stretch")
+
+    st.caption(
+        "Presentation tip: explain one takeaway per chart. Keep the full descriptive statistics "
+        "and every exploratory chart in the report or appendix, not on the live demo screen."
+    )
