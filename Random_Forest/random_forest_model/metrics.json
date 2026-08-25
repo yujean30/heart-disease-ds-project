@@ -1,0 +1,42 @@
+{
+  "model": "RANDOM FOREST (SMOTE)",
+  "threshold": 0.14,
+  "accuracy": 0.2,
+  "precision": 0.2,
+  "recall": 1.0,
+  "f1_score": 0.3333333333333333,
+  "roc_auc": 0.4808234375,
+  "confusion_matrix": {
+    "TN": 0,
+    "FP": 1600,
+    "FN": 0,
+    "TP": 400
+  },
+  "classification_report": {
+    "0": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1-score": 0.0,
+      "support": 1600.0
+    },
+    "1": {
+      "precision": 0.2,
+      "recall": 1.0,
+      "f1-score": 0.3333333333333333,
+      "support": 400.0
+    },
+    "accuracy": 0.2,
+    "macro avg": {
+      "precision": 0.1,
+      "recall": 0.5,
+      "f1-score": 0.16666666666666666,
+      "support": 2000.0
+    },
+    "weighted avg": {
+      "precision": 0.04,
+      "recall": 0.2,
+      "f1-score": 0.06666666666666665,
+      "support": 2000.0
+    }
+  }
+}

@@ -195,21 +195,27 @@ for t in thresholds:
         "F1-Score": f1_score(y_train_raw, pred, zero_division=0),
     })
 df_smote_thresholds = pd.DataFrame(smote_threshold_results)
-df_smote_thresholds.to_csv(os.path.join('random_forest_model', 'threshold_comparison.csv'), index=False)
+df_smote_thresholds.to_csv(
+    os.path.join(BASE_DIR, 'random_forest_model', 'threshold_comparison.csv'),
+    index=False
+)
 smote_best_threshold = float(df_smote_thresholds.loc[df_smote_thresholds['F1-Score'].idxmax(), 'Threshold'])
 print(f"[SMOTE model] Best threshold (via honest CV): {smote_best_threshold}")
 
 # Final model: pipeline’s best_estimator_
 smote_final_model = smote_search.best_estimator_
 smote_final_model.fit(X_train_raw, y_train_raw)
-joblib.dump(smote_final_model, os.path.join('random_forest_model', 'random_forest_tuned.joblib'))
+joblib.dump(
+    smote_final_model,
+    os.path.join(BASE_DIR, 'random_forest_model', 'random_forest_tuned.joblib')
+)
 
 evaluate_and_report(
-    smote_final_model, "RANDOM FOREST (SMOTE)", 'random_forest_model',
+    smote_final_model, "RANDOM FOREST (SMOTE)", os.path.join(BASE_DIR, 'random_forest_model'),
     smote_best_threshold, cm_cmap='Greens'
 )
 save_feature_importance(
-    smote_final_model.named_steps['classifier'], X_train_raw.columns, 'random_forest_model',
+    smote_final_model.named_steps['classifier'], X_train_raw.columns, os.path.join(BASE_DIR, 'random_forest_model'),
     "Random Forest (SMOTE) Feature Importance", color='seagreen'
 )
 
@@ -256,20 +262,23 @@ for t in thresholds:
         "F1-Score": f1_score(y_train_raw, pred, zero_division=0),
     })
 df_no_smote_thresholds = pd.DataFrame(no_smote_threshold_results)
-df_no_smote_thresholds.to_csv(os.path.join('random_forest_model_no_smote', 'threshold_comparison.csv'), index=False)
+df_no_smote_thresholds.to_csv(
+    os.path.join(BASE_DIR, 'random_forest_model_no_smote', 'threshold_comparison.csv'),
+    index=False
+)
 no_smote_best_threshold = float(df_no_smote_thresholds.loc[df_no_smote_thresholds['F1-Score'].idxmax(), 'Threshold'])
 print(f"[No-SMOTE model] Best threshold (via honest CV): {no_smote_best_threshold}")
 
 no_smote_final_model = no_smote_search.best_estimator_
 no_smote_final_model.fit(X_train_raw, y_train_raw)
-joblib.dump(no_smote_final_model, os.path.join('random_forest_model_no_smote', 'random_forest_no_smote.joblib'))
+joblib.dump(no_smote_final_model, os.path.join(BASE_DIR, 'random_forest_model_no_smote', 'random_forest_no_smote.joblib'))
 
 evaluate_and_report(
-    no_smote_final_model, "RANDOM FOREST (NO SMOTE)", 'random_forest_model_no_smote',
+    no_smote_final_model, "RANDOM FOREST (NO SMOTE)", os.path.join(BASE_DIR, 'random_forest_model_no_smote'),
     no_smote_best_threshold, cm_cmap='Blues'
 )
 save_feature_importance(
-    no_smote_final_model, X_train_raw.columns, 'random_forest_model_no_smote',
+    no_smote_final_model, X_train_raw.columns, os.path.join(BASE_DIR, 'random_forest_model_no_smote'),
     "Random Forest (No SMOTE) Feature Importance", color='steelblue'
 )
 
@@ -278,8 +287,8 @@ save_feature_importance(
 # ===========================================================
 if os.path.exists('scaler.pkl'):
     scaler = joblib.load('scaler.pkl')
-    joblib.dump(scaler, os.path.join('random_forest_model', 'scaler.pkl'))
-    joblib.dump(scaler, os.path.join('random_forest_model_no_smote', 'scaler.pkl'))
+    joblib.dump(scaler, os.path.join(BASE_DIR, 'random_forest_model', 'scaler.pkl'))
+    joblib.dump(scaler, os.path.join(BASE_DIR, 'random_forest_model_no_smote', 'scaler.pkl'))
 else:
     print("\nWARNING: scaler.pkl not found -- run preprocess.py first.")
 
