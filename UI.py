@@ -1,3 +1,5 @@
+from importlib.resources import path
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -35,8 +37,8 @@ def load_baseline_artifacts():
 
 @st.cache_resource
 def load_rf_artifacts():
-    model_path = 'random_forest_model/random_forest_tuned.joblib'
-    scaler_path = 'random_forest_model/scaler.pkl'
+    model_path = 'random_forest/random_forest_model/random_forest_tuned.joblib'
+    scaler_path = 'shared_scaler.pkl'
     if os.path.exists(model_path) and os.path.exists(scaler_path):
         return joblib.load(model_path), joblib.load(scaler_path)
     else:
@@ -84,10 +86,16 @@ if model_choice == "Logistic Regression (Baseline)":
     decision_threshold = 0.5
 elif model_choice == "Random Forest":
     model, scaler = rf_model, rf_scaler
-    metrics_path = 'random_forest_model/rf_metrics.csv'
-    cm_path = 'random_forest_model/rf_confusion_matrix.png'
-    roc_path = 'random_forest_model/rf_roc_curve.png'
-    decision_threshold = 0.5
+    metrics_path = 'random_forest/random_forest_model/metrics.csv'
+    cm_path = 'random_forest/random_forest_model/confusion_matrix.png'
+    roc_path = 'random_forest/random_forest_model/roc_curve.png'
+    model_dir = 'random_forest/random_forest_model'
+    threshold_path = os.path.join(model_dir, 'decision_threshold.joblib')
+    if os.path.exists(threshold_path):
+        decision_threshold = joblib.load(threshold_path)
+    else:
+        st.warning(f"decision_threshold.joblib not found in {model_dir} -- falling back to 0.5.")
+        decision_threshold = 0.5
 elif model_choice == "KNN":
     model, scaler = knn_model, knn_scaler
     metrics_path = 'KNN_Model/knn_metrics.csv'
@@ -114,7 +122,7 @@ st.write("## 📊 Model Comparison")
 
 display_metric_columns = ["Accuracy", "Precision", "Recall", "F1-Score", "ROC-AUC"]
 lr_metrics_path = 'logistic_regression_model/lr_baseline_metrics.csv'
-rf_metrics_path = 'random_forest_model/rf_metrics.csv'
+rf_metrics_path = 'random_forest/random_forest_model/metrics.csv'
 svm_metrics_path = 'SVM_Model/svm_xgb_metrics.csv'
 knn_metrics_path = 'KNN_Model/knn_metrics.csv'
 
@@ -178,18 +186,18 @@ with tab1:
         chol = st.number_input("Cholesterol Level (mg/dL)", min_value=100, max_value=400, value=200)
         bmi = st.number_input("BMI", min_value=10.0, max_value=50.0, value=25.0)
         sleep = st.number_input("Sleep Hours per Day", min_value=2.0, max_value=14.0, value=7.0)
+        exercise = st.selectbox("Exercise Habits", ["Low", "Medium", "High"])
 
     with col2:
-        exercise = st.selectbox("Exercise Habits", ["Low", "Medium", "High"])
         alcohol = st.selectbox("Alcohol Consumption", ["None", "Low", "Medium", "High"])
         stress = st.selectbox("Stress Level", ["Low", "Medium", "High"])
         sugar = st.selectbox("Sugar Consumption", ["Low", "Medium", "High"])
         smoking = st.selectbox("Smoking Status", ["No", "Yes"])
         family_history = st.selectbox("Family Heart Disease History", ["No", "Yes"])
-
-    with col3:
         diabetes = st.selectbox("Diabetes Status", ["No", "Yes"])
         high_bp = st.selectbox("High Blood Pressure Diagnosis", ["No", "Yes"])
+
+    with col3:
         low_hdl = st.selectbox("Low HDL Cholesterol", ["No", "Yes"])
         high_ldl = st.selectbox("High LDL Cholesterol", ["No", "Yes"])
         triglycerides = st.number_input("Triglyceride Level", min_value=50, max_value=500, value=150)
@@ -414,7 +422,7 @@ with tab_eda:
     )
 
     TARGET_COL = "Heart Disease Status"
-    DATA_PATH = Path(__file__).resolve().parent / "heart_disease_cleaned_full.csv"
+    DATA_PATH = Path(__file__).resolve().parent / "heart_disease.csv"
 
     @st.cache_data
     def load_eda_data(path: str) -> pd.DataFrame:
@@ -425,7 +433,7 @@ with tab_eda:
     try:
         df_eda = load_eda_data(str(DATA_PATH))
     except FileNotFoundError:
-        st.error("EDA dataset not found. Keep heart_disease_cleaned_full.csv beside UI.py.")
+        st.error("EDA dataset not found. Keep heart_disease.csv beside UI.py.")
         st.stop()
 
     if TARGET_COL not in df_eda.columns:
@@ -573,3 +581,106 @@ with tab_eda:
         "Presentation tip: explain one takeaway per chart. Keep the full descriptive statistics "
         "and every exploratory chart in the report or appendix, not on the live demo screen."
     )
+
+    # 5. Missing values: before vs. after preprocessing
+    st.markdown("#### 5. Missing values: before vs. after preprocessing")
+
+    RAW_DATA_PATH = Path(__file__).resolve().parent / "heart_disease.csv"
+
+    @st.cache_data
+    def load_raw_data(path: str) -> pd.DataFrame:
+        return pd.read_csv(path)
+
+    try:
+        df_raw = load_raw_data(str(RAW_DATA_PATH))
+
+        missing_before = df_raw.isna().sum()
+        missing_before = missing_before[missing_before > 0].sort_values(ascending=False)
+
+        if missing_before.empty:
+            st.info("No missing values were present in the raw dataset.")
+        else:
+            before_after_df = pd.DataFrame({
+                "Column": list(missing_before.index) * 2,
+                "Missing Values": list(missing_before.values) + [0] * len(missing_before),
+                "Stage": (["Before Imputation"] * len(missing_before)
+                          + ["After Imputation"] * len(missing_before))
+            })
+
+            fig_missing = px.bar(
+                before_after_df,
+                x="Column",
+                y="Missing Values",
+                color="Stage",
+                barmode="group",
+                color_discrete_map={
+                    "Before Imputation": "#D9534F",
+                    "After Imputation": "#2E8B57"
+                },
+                title="Missing Values by Column: Before vs. After preprocess.py's Imputation"
+            )
+            fig_missing.update_layout(xaxis_tickangle=-40, legend_title_text="")
+            st.plotly_chart(fig_missing, width="stretch")
+
+            total_before = int(missing_before.sum())
+            st.caption(
+                f"Raw dataset (`heart_disease.csv`) had **{total_before:,} missing cells** across "
+                f"{len(missing_before)} columns. `preprocess.py` fills numeric columns with the "
+                "median and categorical columns with the mode (most frequent value), so every "
+                "column ends at 0 missing values -- this is what the models are actually trained on. "
+                "Note: `heart_disease_cleaned_full.csv` (used elsewhere on this page) only has "
+                "duplicates removed -- the imputation above was never written back into that file."
+            )
+    except FileNotFoundError:
+        st.warning("Raw dataset (heart_disease.csv) not found beside UI.py -- "
+                   "can't show the before/after comparison.")
+
+    # 6. Train vs. Test class distribution
+    st.markdown("#### 6. Train vs. Test class distribution")
+
+    Y_TRAIN_PATH = Path(__file__).resolve().parent / "y_train.csv"
+    Y_TRAIN_SMOTE_PATH = Path(__file__).resolve().parent / "y_train_smote.csv"
+    Y_TEST_PATH = Path(__file__).resolve().parent / "y_test.csv"
+
+    @st.cache_data
+    def load_label_counts(path: str, label_map=None) -> pd.Series:
+        s = pd.read_csv(path).squeeze("columns")
+        counts = s.value_counts().sort_index()
+        if label_map:
+            counts.index = counts.index.map(label_map)
+        return counts
+
+    label_map = {0: "No Heart Disease", 1: "Heart Disease"}
+
+    try:
+        rows = []
+
+        train_counts = load_label_counts(str(Y_TRAIN_PATH), label_map)
+        for label, count in train_counts.items():
+            rows.append({"Split": "Train", "Class": label, "Count": int(count)})
+
+        test_counts = load_label_counts(str(Y_TEST_PATH), label_map)
+        for label, count in test_counts.items():
+            rows.append({"Split": "Test", "Class": label, "Count": int(count)})
+
+        df_split_counts = pd.DataFrame(rows)
+        df_split_counts["Percentage"] = df_split_counts.groupby("Split")["Count"].transform(
+            lambda x: x / x.sum() * 100
+        )
+
+        fig_split = px.bar(
+            df_split_counts,
+            x="Split",
+            y="Count",
+            color="Class",
+            barmode="stack",
+            text=df_split_counts["Percentage"].map("{:.0f}%".format),
+            color_discrete_map={"No Heart Disease": "#2E8B57", "Heart Disease": "#D9534F"},
+            title="Class Distribution: Train vs. Test"
+        )
+        fig_split.update_traces(textposition="inside")
+        fig_split.update_layout(legend_title_text="")
+        st.plotly_chart(fig_split, width="stretch")
+
+    except FileNotFoundError as e:
+        st.warning(f"Couldn't load one of the label files for this comparison: {e}")

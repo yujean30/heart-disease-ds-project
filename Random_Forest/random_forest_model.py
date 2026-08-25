@@ -256,6 +256,11 @@ joblib.dump(
     os.path.join(BASE_DIR, 'random_forest_model', 'random_forest_tuned.joblib')
 )
 
+joblib.dump(
+    smote_best_threshold,
+    os.path.join(BASE_DIR, 'random_forest_model', 'decision_threshold.joblib')
+)
+
 evaluate_and_report(
     smote_final_model, "RANDOM FOREST (SMOTE)", os.path.join(BASE_DIR, 'random_forest_model'),
     smote_best_threshold, cm_cmap='Greens'
@@ -313,6 +318,11 @@ print(f"  -> CV Precision={no_smote_best_row['Precision']:.3f}, "
 no_smote_final_model = no_smote_search.best_estimator_
 no_smote_final_model.fit(X_train_raw, y_train_raw)
 joblib.dump(no_smote_final_model, os.path.join(BASE_DIR, 'random_forest_model_no_smote', 'random_forest_no_smote.joblib'))
+
+joblib.dump(
+    no_smote_best_threshold,
+    os.path.join(BASE_DIR, 'random_forest_model_no_smote', 'decision_threshold.joblib')
+)
 
 evaluate_and_report(
     no_smote_final_model, "RANDOM FOREST (NO SMOTE)", os.path.join(BASE_DIR, 'random_forest_model_no_smote'),
