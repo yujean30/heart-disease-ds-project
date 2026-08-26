@@ -298,3 +298,29 @@ plt.ylabel("Fasting Blood Sugar (mg/dL)")
 plt.tight_layout()
 plt.savefig("graph_15_hexbin_density.png")
 plt.show()
+
+
+# -------------------------------------------------------------------------
+# GRAPH 16: Diabetes and Heart Disease Status
+# -------------------------------------------------------------------------
+
+plt.figure(figsize=(8, 5))
+
+sns.countplot(
+    data=df,
+    x="Diabetes",
+    hue="Heart Disease Status"
+)
+
+plt.title(
+    "Graph 16: Relationship Between Diabetes and Heart Disease Status"
+)
+
+plt.xlabel("Diabetes")
+plt.ylabel("Count")
+
+plt.tight_layout()
+
+plt.savefig("graph_16_diabetes_heart_disease.png")
+
+plt.show()
