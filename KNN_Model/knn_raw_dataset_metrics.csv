@@ -1,0 +1,2 @@
+Model,Best K,Weights,Metric,CV Accuracy,Accuracy,Precision,Recall,F1 Score,ROC AUC
+KNN,25,uniform,euclidean,0.8002500000000001,0.8005,1.0,0.0025,0.004987531172069825,0.508290625
