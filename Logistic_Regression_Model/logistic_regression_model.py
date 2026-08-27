@@ -83,8 +83,8 @@ lr_results.to_csv(os.path.join(output_dir, 'lr_baseline_metrics.csv'), index=Fal
 
 # Generate & Save Confusion Matrix
 plt.figure(figsize=(6, 5))
-cm = confusion_matrix(y_test, y_pred)
-sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', cbar=False,
+cm = confusion_matrix(y_test, y_pred) #Orange
+sns.heatmap(cm, annot=True, fmt='d', cmap='Oranges', cbar=False,
             xticklabels=['No Heart Disease', 'Heart Disease'],
             yticklabels=['No Heart Disease', 'Heart Disease'])
 plt.title('Baseline Logistic Regression - Confusion Matrix')
