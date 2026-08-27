@@ -43,6 +43,58 @@ print(f"Test set (real, untouched):  {X_test.shape[0]} rows, "
       f"{pd.Series(y_test).value_counts().to_dict()}")
 
 cv_strategy = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+thresholds = np.arange(0.05, 0.96, 0.01)
+
+# --------------------------------------------------------------
+# Threshold selection is weighted toward precision instead of pure F1.
+#
+# F-beta with beta < 1 weights precision more heavily than recall --
+# beta=0.5 means "precision matters ~2x more than recall". Lower beta
+# further (e.g. 0.3) to push even harder toward precision at recall's
+# expense. beta=1.0 would be equivalent to the original F1-based selection.
+#
+# min_predicted_positive guards against picking an unstable threshold:
+# at very high thresholds, precision can look artificially high just
+# because only a handful of predictions were made (small-sample noise,
+# not a real pattern). Thresholds with fewer than this many predicted
+# positives are excluded before picking the best one.
+# --------------------------------------------------------------
+FBETA_BETA = 0.5
+MIN_PREDICTED_POSITIVE = 20
+
+
+def select_threshold_by_fbeta(y_true, oof_proba, thresholds, beta=FBETA_BETA,
+                               min_predicted_positive=MIN_PREDICTED_POSITIVE):
+    results = []
+    for t in thresholds:
+        pred = (oof_proba >= t).astype(int)
+        prec = precision_score(y_true, pred, zero_division=0)
+        rec = recall_score(y_true, pred, zero_division=0)
+        f1 = f1_score(y_true, pred, zero_division=0)
+        if prec + rec > 0:
+            f_beta = (1 + beta**2) * prec * rec / ((beta**2 * prec) + rec)
+        else:
+            f_beta = 0.0
+        results.append({
+            "Threshold": round(t, 2),
+            "Precision": prec,
+            "Recall": rec,
+            "F1-Score": f1,
+            f"F-beta (beta={beta})": f_beta,
+            "N_Predicted_Positive": int(pred.sum()),
+        })
+    df = pd.DataFrame(results)
+
+    stable = df[df["N_Predicted_Positive"] >= min_predicted_positive]
+    if stable.empty:
+        print(f"WARNING: no threshold reached {min_predicted_positive} predicted "
+              f"positives -- falling back to full threshold range.")
+        stable = df
+
+    best_row = stable.loc[stable[f"F-beta (beta={beta})"].idxmax()]
+    best_threshold = float(best_row["Threshold"])
+    return best_threshold, best_row, df
+
 
 # a place to collect both models' final numbers for the side-by-side comparison table printed at the very end
 comparison_rows = []
@@ -178,29 +230,23 @@ smote_search = RandomizedSearchCV(
 smote_search.fit(X_train_raw, y_train_raw)
 print(f"\n[SMOTE model] Best hyperparameters (via honest CV): {smote_search.best_params_}")
 
-# Threshold tuning
+# Threshold tuning -- precision-weighted (F-beta, beta=0.5) instead of F1
 smote_oof_proba = cross_val_predict(
     smote_search.best_estimator_, X_train_raw, y_train_raw,
     cv=cv_strategy, method='predict_proba', n_jobs=-1
 )[:, 1]
 
-thresholds = np.arange(0.05, 0.96, 0.01)
-smote_threshold_results = []
-for t in thresholds:
-    pred = (smote_oof_proba >= t).astype(int)
-    smote_threshold_results.append({
-        "Threshold": round(t, 2),
-        "Precision": precision_score(y_train_raw, pred, zero_division=0),
-        "Recall": recall_score(y_train_raw, pred, zero_division=0),
-        "F1-Score": f1_score(y_train_raw, pred, zero_division=0),
-    })
-df_smote_thresholds = pd.DataFrame(smote_threshold_results)
+smote_best_threshold, smote_best_row, df_smote_thresholds = select_threshold_by_fbeta(
+    y_train_raw, smote_oof_proba, thresholds
+)
 df_smote_thresholds.to_csv(
     os.path.join(BASE_DIR, 'random_forest_model', 'threshold_comparison.csv'),
     index=False
 )
-smote_best_threshold = float(df_smote_thresholds.loc[df_smote_thresholds['F1-Score'].idxmax(), 'Threshold'])
-print(f"[SMOTE model] Best threshold (via honest CV): {smote_best_threshold}")
+print(f"[SMOTE model] Best threshold (precision-weighted, via honest CV): {smote_best_threshold}")
+print(f"  -> CV Precision={smote_best_row['Precision']:.3f}, "
+      f"Recall={smote_best_row['Recall']:.3f}, "
+      f"N_predicted_positive={int(smote_best_row['N_Predicted_Positive'])}")
 
 # Final model: pipeline’s best_estimator_
 smote_final_model = smote_search.best_estimator_
@@ -208,6 +254,11 @@ smote_final_model.fit(X_train_raw, y_train_raw)
 joblib.dump(
     smote_final_model,
     os.path.join(BASE_DIR, 'random_forest_model', 'random_forest_tuned.joblib')
+)
+
+joblib.dump(
+    smote_best_threshold,
+    os.path.join(BASE_DIR, 'random_forest_model', 'decision_threshold.joblib')
 )
 
 evaluate_and_report(
@@ -252,26 +303,26 @@ no_smote_oof_proba = cross_val_predict(
     cv=cv_strategy, method='predict_proba', n_jobs=-1
 )[:, 1]
 
-no_smote_threshold_results = []
-for t in thresholds:
-    pred = (no_smote_oof_proba >= t).astype(int)
-    no_smote_threshold_results.append({
-        "Threshold": round(t, 2),
-        "Precision": precision_score(y_train_raw, pred, zero_division=0),
-        "Recall": recall_score(y_train_raw, pred, zero_division=0),
-        "F1-Score": f1_score(y_train_raw, pred, zero_division=0),
-    })
-df_no_smote_thresholds = pd.DataFrame(no_smote_threshold_results)
+no_smote_best_threshold, no_smote_best_row, df_no_smote_thresholds = select_threshold_by_fbeta(
+    y_train_raw, no_smote_oof_proba, thresholds
+)
 df_no_smote_thresholds.to_csv(
     os.path.join(BASE_DIR, 'random_forest_model_no_smote', 'threshold_comparison.csv'),
     index=False
 )
-no_smote_best_threshold = float(df_no_smote_thresholds.loc[df_no_smote_thresholds['F1-Score'].idxmax(), 'Threshold'])
-print(f"[No-SMOTE model] Best threshold (via honest CV): {no_smote_best_threshold}")
+print(f"[No-SMOTE model] Best threshold (precision-weighted, via honest CV): {no_smote_best_threshold}")
+print(f"  -> CV Precision={no_smote_best_row['Precision']:.3f}, "
+      f"Recall={no_smote_best_row['Recall']:.3f}, "
+      f"N_predicted_positive={int(no_smote_best_row['N_Predicted_Positive'])}")
 
 no_smote_final_model = no_smote_search.best_estimator_
 no_smote_final_model.fit(X_train_raw, y_train_raw)
 joblib.dump(no_smote_final_model, os.path.join(BASE_DIR, 'random_forest_model_no_smote', 'random_forest_no_smote.joblib'))
+
+joblib.dump(
+    no_smote_best_threshold,
+    os.path.join(BASE_DIR, 'random_forest_model_no_smote', 'decision_threshold.joblib')
+)
 
 evaluate_and_report(
     no_smote_final_model, "RANDOM FOREST (NO SMOTE)", os.path.join(BASE_DIR, 'random_forest_model_no_smote'),

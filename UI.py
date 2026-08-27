@@ -1,3 +1,5 @@
+from importlib.resources import path
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -20,28 +22,23 @@ st.set_page_config(
 
 st.title("🩺 Heart Disease Risk Prediction System")
 
-# ---------------------------------------------------------
-# 2. Load Models & Scalers
-# ---------------------------------------------------------
 @st.cache_resource
 def load_baseline_artifacts():
-    model_path = 'logistic_regression_model/best_lr_model.pkl'
-    scaler_path = 'logistic_regression_model/scaler.pkl'
+    model_path = 'Logistic_Regression_Model/best_lr_model.pkl'
+    scaler_path = 'Logistic_Regression_Model/scaler.pkl'
     if os.path.exists(model_path) and os.path.exists(scaler_path):
         return joblib.load(model_path), joblib.load(scaler_path)
-    else:
-        st.error("Baseline LR model or scaler missing!")
-        return None, None
+    st.error("Baseline LR model or scaler missing!")
+    return None, None
 
 @st.cache_resource
 def load_rf_artifacts():
-    model_path = 'random_forest_model/random_forest_tuned.joblib'
-    scaler_path = 'random_forest_model/scaler.pkl'
+    model_path = 'random_forest/random_forest_model/random_forest_tuned.joblib'
+    scaler_path = 'shared_scaler.pkl'
     if os.path.exists(model_path) and os.path.exists(scaler_path):
         return joblib.load(model_path), joblib.load(scaler_path)
-    else:
-        st.error("Random Forest model or scaler missing!")
-        return None, None
+    st.error("Random Forest model or scaler missing!")
+    return None, None
 
 @st.cache_resource
 def load_svm_artifacts():
@@ -57,54 +54,13 @@ def load_knn_artifacts():
     scaler_path = 'KNN_Model/scaler.pkl'
     if os.path.exists(model_path) and os.path.exists(scaler_path):
         return joblib.load(model_path), joblib.load(scaler_path)
-    else:
-        st.error("KNN model or scaler missing! Export them from KNN_Heart_Disease_Model.ipynb "
-                  "as 'KNN_Model/knn_model.joblib' and 'KNN_Model/scaler.pkl'.")
-        return None, None
+    st.error("KNN model or scaler missing!")
+    return None, None
 
 lr_model, lr_scaler = load_baseline_artifacts()
 rf_model, rf_scaler = load_rf_artifacts()
 svm_model, svm_scaler = load_svm_artifacts()
 knn_model, knn_scaler = load_knn_artifacts()
-
-# ---------------------------------------------------------
-# 3. Model Selection
-# ---------------------------------------------------------
-st.write("### Select Prediction Model")
-model_choice = st.selectbox(
-    "Choose a model:",
-    ["Logistic Regression (Baseline)", "Random Forest", "SVM", "KNN"]
-)
-
-if model_choice == "Logistic Regression (Baseline)":
-    model, scaler = lr_model, lr_scaler
-    metrics_path = 'logistic_regression_model/lr_baseline_metrics.csv'
-    cm_path = 'logistic_regression_model/lr_confusion_matrix.png'
-    roc_path = 'logistic_regression_model/lr_roc_curve.png'
-    decision_threshold = 0.5
-elif model_choice == "Random Forest":
-    model, scaler = rf_model, rf_scaler
-    metrics_path = 'random_forest_model/rf_metrics.csv'
-    cm_path = 'random_forest_model/rf_confusion_matrix.png'
-    roc_path = 'random_forest_model/rf_roc_curve.png'
-    decision_threshold = 0.5
-elif model_choice == "KNN":
-    model, scaler = knn_model, knn_scaler
-    metrics_path = 'KNN_Model/knn_metrics.csv'
-    cm_path = 'KNN_Model/knn_confusion_matrix.png'
-    roc_path = 'KNN_Model/knn_roc_curve.png'
-    decision_threshold = 0.5
-    if model is None:
-        st.warning("KNN model file is missing. Export the trained model/scaler from the notebook to enable KNN predictions.")
-else:
-    model, scaler = svm_model, svm_scaler
-    metrics_path = 'SVM_Model/svm_xgb_metrics.csv'
-    cm_path = 'SVM_Model/svm_xgb_confusion_matrix.png'
-    roc_path = 'SVM_Model/svm_xgb_roc_curve.png'
-    threshold_path = 'SVM_Model/svm_xgb_decision_threshold.joblib'
-    decision_threshold = joblib.load(threshold_path) if os.path.exists(threshold_path) else 0.5
-    if model is None:
-        st.warning("SVM model file is missing. Run the SVM training script to enable SVM predictions.")
 
 # ---------------------------------------------------------
 # 3b. Model Comparison Section (Simplified) — moved above tabs
@@ -113,8 +69,8 @@ st.markdown("---")
 st.write("## 📊 Model Comparison")
 
 display_metric_columns = ["Accuracy", "Precision", "Recall", "F1-Score", "ROC-AUC"]
-lr_metrics_path = 'logistic_regression_model/lr_baseline_metrics.csv'
-rf_metrics_path = 'random_forest_model/rf_metrics.csv'
+lr_metrics_path = 'Logistic_Regression_Model/lr_baseline_metrics.csv'
+rf_metrics_path = 'random_forest/random_forest_model/metrics.csv'
 svm_metrics_path = 'SVM_Model/svm_xgb_metrics.csv'
 knn_metrics_path = 'KNN_Model/knn_metrics.csv'
 
@@ -147,12 +103,96 @@ if os.path.exists(lr_metrics_path) and os.path.exists(rf_metrics_path):
     st.write("### Model Comparison Table")
     st.dataframe(df_compare, width="stretch")
 
+    # Reshape the shared metrics so every model can be compared in one chart.
+    comparison_long = df_compare.melt(
+        id_vars="Model",
+        value_vars=display_metric_columns,
+        var_name="Metric",
+        value_name="Score"
+    )
+    comparison_long["Score (%)"] = comparison_long["Score"] * 100
+
+    st.write("### Performance Comparison")
+    comparison_fig = px.bar(
+        comparison_long,
+        x="Metric",
+        y="Score (%)",
+        color="Model",
+        barmode="group",
+        text="Score (%)",
+        hover_data={"Score (%)": ":.2f"},
+        color_discrete_map={
+            "Logistic Regression": "#ecec98",
+            "Random Forest": "#7dcfb6",
+            "SVM": "#b5a4cb",
+            "KNN": "#1C2B48"
+        },
+        title="Model Performance Across Evaluation Metrics"
+    )
+    comparison_fig.update_traces(
+        texttemplate="%{text:.1f}%",
+        textposition="outside",
+        cliponaxis=False
+    )
+    comparison_fig.update_layout(
+        yaxis_title="Score (%)",
+        yaxis_range=[0, 100],
+        xaxis_title="Evaluation metric",
+        legend_title="Model"
+    )
+    st.plotly_chart(comparison_fig, width="stretch")
+
     # Display result summary
     st.success(f"✅ Based on F1-Score, **{best_model_name}** performs better overall.")
 else:
     st.info("Comparison metrics not available yet. Please ensure both models have metrics CSV files saved.")
 
 st.markdown("---")
+
+# ---------------------------------------------------------
+# 3. Model Selection
+# ---------------------------------------------------------
+st.write("### Select Prediction Model")
+model_choice = st.selectbox(
+    "Choose a model:",
+    ["Logistic Regression (Baseline)", "Random Forest", "SVM", "KNN"]
+)
+
+if model_choice == "Logistic Regression (Baseline)":
+    model, scaler = lr_model, lr_scaler
+    metrics_path = 'Logistic_Regression_Model/lr_baseline_metrics.csv'
+    cm_path = 'Logistic_Regression_Model/lr_confusion_matrix.png'
+    roc_path = 'Logistic_Regression_Model/lr_roc_curve.png'
+    decision_threshold = 0.5
+elif model_choice == "Random Forest":
+    model, scaler = rf_model, rf_scaler
+    metrics_path = 'random_forest/random_forest_model/metrics.csv'
+    cm_path = 'random_forest/random_forest_model/confusion_matrix.png'
+    roc_path = 'random_forest/random_forest_model/roc_curve.png'
+    model_dir = 'random_forest/random_forest_model'
+    threshold_path = os.path.join(model_dir, 'decision_threshold.joblib')
+    if os.path.exists(threshold_path):
+        decision_threshold = joblib.load(threshold_path)
+    else:
+        st.warning(f"decision_threshold.joblib not found in {model_dir} -- falling back to 0.5.")
+        decision_threshold = 0.5
+elif model_choice == "KNN":
+    model, scaler = knn_model, knn_scaler
+    metrics_path = 'KNN_Model/knn_metrics.csv'
+    cm_path = 'KNN_Model/knn_confusion_matrix.png'
+    roc_path = 'KNN_Model/knn_roc_curve.png'
+    decision_threshold = 0.5
+    if model is None:
+        st.warning("KNN model file is missing. Export the trained model/scaler from KNN_Heart_Disease_Model.ipynb to enable KNN predictions.")
+else:
+    model, scaler = svm_model, svm_scaler
+    metrics_path = 'SVM_Model/svm_xgb_metrics.csv'
+    cm_path = 'SVM_Model/svm_xgb_confusion_matrix.png'
+    roc_path = 'SVM_Model/svm_xgb_roc_curve.png'
+    threshold_path = 'SVM_Model/svm_xgb_decision_threshold.joblib'
+    decision_threshold = joblib.load(threshold_path) if os.path.exists(threshold_path) else 0.5
+    if model is None:
+        st.warning("SVM model file is missing. Run the SVM training script to enable SVM predictions.")
 
 # ---------------------------------------------------------
 # 4. Tabs for Prediction, Metrics, Samples, and EDA
@@ -178,18 +218,18 @@ with tab1:
         chol = st.number_input("Cholesterol Level (mg/dL)", min_value=100, max_value=400, value=200)
         bmi = st.number_input("BMI", min_value=10.0, max_value=50.0, value=25.0)
         sleep = st.number_input("Sleep Hours per Day", min_value=2.0, max_value=14.0, value=7.0)
+        exercise = st.selectbox("Exercise Habits", ["Low", "Medium", "High"])
 
     with col2:
-        exercise = st.selectbox("Exercise Habits", ["Low", "Medium", "High"])
         alcohol = st.selectbox("Alcohol Consumption", ["None", "Low", "Medium", "High"])
         stress = st.selectbox("Stress Level", ["Low", "Medium", "High"])
         sugar = st.selectbox("Sugar Consumption", ["Low", "Medium", "High"])
         smoking = st.selectbox("Smoking Status", ["No", "Yes"])
         family_history = st.selectbox("Family Heart Disease History", ["No", "Yes"])
-
-    with col3:
         diabetes = st.selectbox("Diabetes Status", ["No", "Yes"])
         high_bp = st.selectbox("High Blood Pressure Diagnosis", ["No", "Yes"])
+
+    with col3:
         low_hdl = st.selectbox("Low HDL Cholesterol", ["No", "Yes"])
         high_ldl = st.selectbox("High LDL Cholesterol", ["No", "Yes"])
         triglycerides = st.number_input("Triglyceride Level", min_value=50, max_value=500, value=150)
@@ -414,7 +454,7 @@ with tab_eda:
     )
 
     TARGET_COL = "Heart Disease Status"
-    DATA_PATH = Path(__file__).resolve().parent / "heart_disease_cleaned_full.csv"
+    DATA_PATH = Path(__file__).resolve().parent / "heart_disease.csv"
 
     @st.cache_data
     def load_eda_data(path: str) -> pd.DataFrame:
@@ -425,7 +465,7 @@ with tab_eda:
     try:
         df_eda = load_eda_data(str(DATA_PATH))
     except FileNotFoundError:
-        st.error("EDA dataset not found. Keep heart_disease_cleaned_full.csv beside UI.py.")
+        st.error("EDA dataset not found. Keep heart_disease.csv beside UI.py.")
         st.stop()
 
     if TARGET_COL not in df_eda.columns:
@@ -510,7 +550,7 @@ with tab_eda:
             barmode="overlay",
             opacity=0.60,
             nbins=25,
-            color_discrete_map={"No": "#2E8B57", "Yes": "#D9534F"},
+            color_discrete_map={"No": "#2E8B57", "Yes": "#DE827F"},
             title=f"Distribution of {numeric_feature}",
         )
         fig_numeric.update_layout(legend_title_text="Heart disease")
@@ -542,7 +582,7 @@ with tab_eda:
             x=category_feature,
             y="Disease rate (%)",
             text=rate_data["Disease rate (%)"].map("{:.1f}%".format),
-            color_discrete_sequence=["#D9534F"],
+            color_discrete_sequence=["#F57970"],
             title=f"Heart-disease rate by {category_feature}",
         )
         fig_rate.update_traces(textposition="outside", cliponaxis=False)

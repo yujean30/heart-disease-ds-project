@@ -11,23 +11,30 @@ from sklearn.metrics import (
     f1_score, roc_auc_score, confusion_matrix, roc_curve
 )
 
-# 1. Create Output Folder
-output_dir = 'logistic_regression_model'
+# set the project and output folder paths
+project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+output_dir = os.path.dirname(os.path.abspath(__file__))
 os.makedirs(output_dir, exist_ok=True)
 
-# 2. Load Preprocessed Data
-X_train = pd.read_csv('X_train_preprocessed.csv')
-X_test = pd.read_csv('X_test_preprocessed.csv')
-y_train = pd.read_csv('y_train.csv').values.ravel()
-y_test = pd.read_csv('y_test.csv').values.ravel()
+# load preprocessed data
+print('Loading preprocessed training and test data...')
+X_train = pd.read_csv(os.path.join(project_dir, 'X_train_preprocessed.csv'))
+X_test = pd.read_csv(os.path.join(project_dir, 'X_test_preprocessed.csv'))
+# load the training targets and make them to 1D array
+y_train = pd.read_csv(os.path.join(project_dir, 'y_train.csv')).values.ravel() 
+y_test = pd.read_csv(os.path.join(project_dir, 'y_test.csv')).values.ravel() 
 
-# 3. Setup Baseline Model & Hyperparameter Tuning
+print(f'Training rows: {len(X_train)} | Test rows: {len(X_test)}')
+print(f'Training class distribution: {pd.Series(y_train).value_counts().to_dict()}')
+
+# setup Baseline Model & hyperparameter tuning
+print('Training Logistic Regression with 5-fold cross-validation...')
 lr_base = LogisticRegression(random_state=42, max_iter=1000, class_weight='balanced')
 
 param_grid = {
     'C': [0.01, 0.1, 1.0, 10.0],
-    'penalty': ['l1', 'l2'],
-    'solver': ['liblinear']
+    'penalty': ['l1', 'l2'], # reduce overfitting 
+    'solver': ['liblinear'] #suitable for small datasets and supports L1 penalty
 }
 
 grid_search = GridSearchCV(
@@ -39,12 +46,15 @@ grid_search = GridSearchCV(
 )
 grid_search.fit(X_train, y_train)
 
+# select the best model from grid search
 best_lr = grid_search.best_estimator_
+print(f'Best parameters: {grid_search.best_params_}')
+print(f'Best cross-validation recall: {grid_search.best_score_:.4f}')
 
-# 4. Save Trained Model Object (.pkl) for Streamlit Prototype
+# Save Trained Model Object (.pkl) for Streamlit Prototype
 joblib.dump(best_lr, os.path.join(output_dir, 'best_lr_model.pkl'))
 
-# 5. Model Evaluation
+# Model Evaluation
 y_pred = best_lr.predict(X_test)
 y_proba = best_lr.predict_proba(X_test)[:, 1]
 
@@ -53,8 +63,14 @@ prec = precision_score(y_test, y_pred)
 rec = recall_score(y_test, y_pred)
 f1 = f1_score(y_test, y_pred)
 auc = roc_auc_score(y_test, y_proba)
+print('\nTEST SET RESULTS')
+print(f'Accuracy : {acc:.4f}')
+print(f'Precision: {prec:.4f}')
+print(f'Recall   : {rec:.4f}')
+print(f'F1-score : {f1:.4f}')
+print(f'ROC-AUC  : {auc:.4f}')
 
-# 6. Save Metrics CSV
+# Save Metrics CSV
 lr_results = pd.DataFrame([{
     'Model': 'Logistic Regression (Baseline)',
     'Accuracy': acc,
@@ -65,7 +81,7 @@ lr_results = pd.DataFrame([{
 }])
 lr_results.to_csv(os.path.join(output_dir, 'lr_baseline_metrics.csv'), index=False)
 
-# 7. Generate & Save Confusion Matrix
+# Generate & Save Confusion Matrix
 plt.figure(figsize=(6, 5))
 cm = confusion_matrix(y_test, y_pred)
 sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', cbar=False,
@@ -78,7 +94,7 @@ plt.tight_layout()
 plt.savefig(os.path.join(output_dir, 'lr_confusion_matrix.png'), dpi=300)
 plt.close()
 
-# 8. Generate & Save ROC Curve
+# Generate & Save ROC Curve
 fpr, tpr, _ = roc_curve(y_test, y_proba)
 plt.figure(figsize=(6, 5))
 plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC Curve (AUC = {auc:.3f})')
@@ -91,3 +107,7 @@ plt.grid(True, alpha=0.3)
 plt.tight_layout()
 plt.savefig(os.path.join(output_dir, 'lr_roc_curve.png'), dpi=300)
 plt.close()
+
+print(f'Outputs saved to: {output_dir}')
+
+
