@@ -72,7 +72,7 @@ display_metric_columns = ["Accuracy", "Precision", "Recall", "F1-Score", "ROC-AU
 lr_metrics_path = 'Logistic_Regression_Model/lr_baseline_metrics.csv'
 rf_metrics_path = 'random_forest/random_forest_model/metrics.csv'
 svm_metrics_path = 'SVM_Model/svm_xgb_metrics.csv'
-knn_metrics_path = 'KNN_Model/knn_metrics.csv'
+knn_metrics_path = 'KNN_Model/knn_baseline_metrics.csv'
 
 if os.path.exists(lr_metrics_path) and os.path.exists(rf_metrics_path):
     df_lr = pd.read_csv(lr_metrics_path)
@@ -88,7 +88,14 @@ if os.path.exists(lr_metrics_path) and os.path.exists(rf_metrics_path):
         comparison_frames.append(df_svm)
     if os.path.exists(knn_metrics_path):
         df_knn = pd.read_csv(knn_metrics_path)
+        # ---
+        # Rename columns to match display_metric_columns
+        df_knn = df_knn.rename(columns={
+            'F1 Score': 'F1-Score',
+            'ROC AUC': 'ROC-AUC'
+        })
         df_knn['Model'] = 'KNN'
+        # ---
         comparison_frames.append(df_knn)
 
     # Combine and reset index properly
@@ -267,7 +274,19 @@ with tab1:
             input_df = pd.DataFrame([input_dict])
             num_cols = ['Age', 'Blood Pressure', 'Cholesterol Level', 'BMI', 'Sleep Hours',
                         'Triglyceride Level', 'Fasting Blood Sugar', 'CRP Level', 'Homocysteine Level']
-            input_df[num_cols] = scaler.transform(input_df[num_cols])
+            #---
+            # Scale the numerical features, but handle KNN separately 
+            # since it may have been trained on a different feature set.
+            if model_choice == "KNN":
+                input_df = input_df.reindex(columns=scaler.feature_names_in_)
+                input_df = pd.DataFrame(
+                    scaler.transform(input_df),
+                    columns=input_df.columns,
+                    index=input_df.index
+                )
+            else:
+                input_df[num_cols] = scaler.transform(input_df[num_cols])
+            #---
 
             probability = model.predict_proba(input_df)[0][1]
             st.markdown(f"### Diagnosis Result ({model_choice})")
@@ -400,8 +419,24 @@ with tab3:
         # Scale numeric columns only for prediction
         scaled_low = df_low.copy()
         scaled_high = df_high.copy()
-        scaled_low[num_cols] = scaler.transform(df_low[num_cols])
-        scaled_high[num_cols] = scaler.transform(df_high[num_cols])
+
+        #---
+        if model_choice == "KNN":
+            knn_columns = scaler.feature_names_in_
+            scaled_low = pd.DataFrame(
+                scaler.transform(df_low.reindex(columns=knn_columns)),
+                columns=knn_columns,
+                index=df_low.index
+            )
+            scaled_high = pd.DataFrame(
+                scaler.transform(df_high.reindex(columns=knn_columns)),
+                columns=knn_columns,
+                index=df_high.index
+            )
+        else:
+            scaled_low[num_cols] = scaler.transform(df_low[num_cols])
+            scaled_high[num_cols] = scaler.transform(df_high[num_cols])
+        #---
 
         # Predict
         df_low['Predicted Probability'] = model.predict_proba(scaled_low)[:, 1]
