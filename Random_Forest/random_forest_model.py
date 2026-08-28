@@ -30,12 +30,14 @@ os.makedirs(os.path.join(BASE_DIR, 'random_forest_model_no_smote'), exist_ok=Tru
 
 # Raw, imbalanced training set -- used for honest CV (both models' search
 # + threshold tuning) and as the actual training data for the No-SMOTE model.
-X_train_raw = pd.read_csv('X_train_preprocessed.csv')
-y_train_raw = pd.read_csv('y_train.csv').values.ravel()
+PROJECT_DIR = os.path.dirname(BASE_DIR)
+PREPROCESSING_DIR = os.path.join(PROJECT_DIR, 'Preprocessing')
+X_train_raw = pd.read_csv(os.path.join(PREPROCESSING_DIR, 'X_train_preprocessed.csv'))
+y_train_raw = pd.read_csv(os.path.join(PREPROCESSING_DIR, 'y_train.csv')).values.ravel()
 
 # Real, untouched test set -- used for final evaluation of BOTH models, exactly once each.
-X_test = pd.read_csv('X_test_preprocessed.csv')
-y_test = pd.read_csv('y_test.csv').values.ravel()
+X_test = pd.read_csv(os.path.join(PREPROCESSING_DIR, 'X_test_preprocessed.csv'))
+y_test = pd.read_csv(os.path.join(PREPROCESSING_DIR, 'y_test.csv')).values.ravel()
 
 print(f"Raw imbalanced training set: {X_train_raw.shape[0]} rows, "
       f"{pd.Series(y_train_raw).value_counts().to_dict()}")

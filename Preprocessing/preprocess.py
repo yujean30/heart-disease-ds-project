@@ -7,7 +7,8 @@ from sklearn.impute import SimpleImputer
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, OrdinalEncoder, StandardScaler
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]
+PREPROCESSING_DIR = ROOT / 'Preprocessing'
 RANDOM_STATE = 42
 
 TARGET = 'Heart Disease Status'
@@ -82,17 +83,20 @@ def main():
     # ---------------------------------------------------------
     # ENCODING (ORDINAL & BINARY)
     # ---------------------------------------------------------
+    encoders = {}
     for col, categories in ORDINAL_MAPPINGS.items():
         encoder = OrdinalEncoder(
             categories=[categories],
             handle_unknown='use_encoded_value',
             unknown_value=-1
         )
+        encoders[col] = encoder
         X_train[col] = encoder.fit_transform(X_train[[col]]).ravel()
         X_test[col] = encoder.transform(X_test[[col]]).ravel()
 
     for col in BINARY_COLS:
         encoder = LabelEncoder()
+        encoders[col] = encoder
         X_train[col] = encoder.fit_transform(X_train[col])
         X_test[col] = encoder.transform(X_test[col])
 
@@ -112,21 +116,24 @@ def main():
     # ---------------------------------------------------------
     # SAVE PREPROCESSED DATA & SCALER
     # ---------------------------------------------------------
-    X_train.to_csv(ROOT / 'X_train_preprocessed.csv', index=False)
-    X_test.to_csv(ROOT / 'X_test_preprocessed.csv', index=False)
-    y_train.to_csv(ROOT / 'y_train.csv', index=False)
-    y_test.to_csv(ROOT / 'y_test.csv', index=False)
+    PREPROCESSING_DIR.mkdir(exist_ok=True)
+    X_train.to_csv(PREPROCESSING_DIR / 'X_train_preprocessed.csv', index=False)
+    X_test.to_csv(PREPROCESSING_DIR / 'X_test_preprocessed.csv', index=False)
+    y_train.to_csv(PREPROCESSING_DIR / 'y_train.csv', index=False)
+    y_test.to_csv(PREPROCESSING_DIR / 'y_test.csv', index=False)
 
-    joblib.dump(scaler, ROOT / 'shared_scaler.pkl')
-    cleaned_df.to_csv(ROOT / 'heart_disease_cleaned_full.csv', index=False)
+    joblib.dump(scaler, PREPROCESSING_DIR / 'shared_scaler.pkl')
+    joblib.dump(encoders, PREPROCESSING_DIR / 'feature_encoders.pkl')
+    cleaned_df.to_csv(PREPROCESSING_DIR / 'heart_disease_cleaned_full.csv', index=False)
 
     print("[6/6] Files saved:")
-    print(f"       - {ROOT / 'heart_disease_cleaned_full.csv'}")
-    print(f"       - {ROOT / 'X_train_preprocessed.csv'}")
-    print(f"       - {ROOT / 'X_test_preprocessed.csv'}")
-    print(f"       - {ROOT / 'y_train.csv'}")
-    print(f"       - {ROOT / 'y_test.csv'}")
-    print(f"       - {ROOT / 'shared_scaler.pkl'}")
+    print(f"       - {PREPROCESSING_DIR / 'heart_disease_cleaned_full.csv'}")
+    print(f"       - {PREPROCESSING_DIR / 'X_train_preprocessed.csv'}")
+    print(f"       - {PREPROCESSING_DIR / 'X_test_preprocessed.csv'}")
+    print(f"       - {PREPROCESSING_DIR / 'y_train.csv'}")
+    print(f"       - {PREPROCESSING_DIR / 'y_test.csv'}")
+    print(f"       - {PREPROCESSING_DIR / 'shared_scaler.pkl'}")
+    print(f"       - {PREPROCESSING_DIR / 'feature_encoders.pkl'}")
     print("\nPREPROCESSING COMPLETED")
 
 if __name__ == '__main__':

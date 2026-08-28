@@ -5,7 +5,7 @@ import pandas as pd
 import seaborn as sns
 
 # Load dataset
-df = pd.read_csv("heart_disease_cleaned_full.csv")
+df = pd.read_csv("Preprocessing/heart_disease_cleaned_full.csv")
 
 # Ensure the "Graph" output folder exists
 output_dir = "Graph"
