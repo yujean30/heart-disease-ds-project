@@ -35,6 +35,7 @@ def main():
     # ---------------------------------------------------------
     df = pd.read_csv(ROOT / 'heart_disease.csv')
     print(f"Dataset Shape: {df.shape[0]} rows, {df.shape[1]} columns")
+    print("[1/6] Loaded raw dataset")
 
     # ---------------------------------------------------------
     # REMOVE DUPLICATES
@@ -43,6 +44,7 @@ def main():
     if duplicate_count > 0:
         df = df.drop_duplicates().reset_index(drop=True)
         print(f"Duplicates removed: {duplicate_count}")
+    print(f"[2/6] Duplicate check complete: {df.duplicated().sum()} duplicates remain")
 
     # ---------------------------------------------------------
     # TARGET & TRAIN/TEST SPLIT
@@ -56,12 +58,13 @@ def main():
 
     X_train = X_train.copy()
     X_test = X_test.copy()
+    print(f"[3/6] Split data: {len(X_train)} training rows, {len(X_test)} test rows")
 
     # ---------------------------------------------------------
     # MISSING VALUES & IMPUTATION
     # ---------------------------------------------------------
-    X_train['Alcohol Consumption'] = X_train['Alcohol Consumption'].fillna('None')
-    X_test['Alcohol Consumption'] = X_test['Alcohol Consumption'].fillna('None')
+    X_train['Alcohol Consumption'] = X_train['Alcohol Consumption'].fillna('Unknown')
+    X_test['Alcohol Consumption'] = X_test['Alcohol Consumption'].fillna('Unknown')
 
     num_cols = X_train.select_dtypes(include=[np.number]).columns.tolist()
     cat_cols = X_train.select_dtypes(include=['object', 'str']).columns.tolist()
@@ -73,6 +76,8 @@ def main():
     cat_imputer = SimpleImputer(strategy='most_frequent')
     X_train[cat_cols] = cat_imputer.fit_transform(X_train[cat_cols])
     X_test[cat_cols] = cat_imputer.transform(X_test[cat_cols])
+
+    print("[4/6] Missing values handled in training and test data")
 
     # ---------------------------------------------------------
     # ENCODING (ORDINAL & BINARY)
@@ -97,6 +102,12 @@ def main():
     scaler = StandardScaler()
     X_train[num_cols] = scaler.fit_transform(X_train[num_cols])
     X_test[num_cols] = scaler.transform(X_test[num_cols])
+    print("[5/6] Encoding and scaling complete")
+
+    cleaned_df = df.copy()
+    cleaned_df['Alcohol Consumption'] = cleaned_df['Alcohol Consumption'].fillna('Unknown')
+    cleaned_df[num_cols] = num_imputer.transform(cleaned_df[num_cols])
+    cleaned_df[cat_cols] = cat_imputer.transform(cleaned_df[cat_cols])
 
     # ---------------------------------------------------------
     # SAVE PREPROCESSED DATA & SCALER
@@ -107,8 +118,15 @@ def main():
     y_test.to_csv(ROOT / 'y_test.csv', index=False)
 
     joblib.dump(scaler, ROOT / 'shared_scaler.pkl')
-    df.to_csv(ROOT / 'heart_disease_cleaned_full.csv', index=False)
+    cleaned_df.to_csv(ROOT / 'heart_disease_cleaned_full.csv', index=False)
 
+    print("[6/6] Files saved:")
+    print(f"       - {ROOT / 'heart_disease_cleaned_full.csv'}")
+    print(f"       - {ROOT / 'X_train_preprocessed.csv'}")
+    print(f"       - {ROOT / 'X_test_preprocessed.csv'}")
+    print(f"       - {ROOT / 'y_train.csv'}")
+    print(f"       - {ROOT / 'y_test.csv'}")
+    print(f"       - {ROOT / 'shared_scaler.pkl'}")
     print("\nPREPROCESSING COMPLETED")
 
 if __name__ == '__main__':
