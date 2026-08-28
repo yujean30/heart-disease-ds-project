@@ -30,7 +30,7 @@ RANDOM_STATE = 42
 TEST_SIZE = 0.20
 
 # Change this only if your CSV has a different filename.
-DATA_PATH = "heart_disease_cleaned_full.csv"
+DATA_PATH = "Preprocessing/heart_disease_cleaned_full.csv"
 
 OUTPUT_DIR = "KNN_Model"
 os.makedirs(OUTPUT_DIR, exist_ok=True)

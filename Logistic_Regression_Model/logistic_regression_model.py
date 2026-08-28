@@ -18,11 +18,12 @@ os.makedirs(output_dir, exist_ok=True)
 
 # load preprocessed data
 print('Loading preprocessed training and test data...')
-X_train = pd.read_csv(os.path.join(project_dir, 'X_train_preprocessed.csv'))
-X_test = pd.read_csv(os.path.join(project_dir, 'X_test_preprocessed.csv'))
+preprocessing_dir = os.path.join(project_dir, 'Preprocessing')
+X_train = pd.read_csv(os.path.join(preprocessing_dir, 'X_train_preprocessed.csv'))
+X_test = pd.read_csv(os.path.join(preprocessing_dir, 'X_test_preprocessed.csv'))
 # load the training targets and make them to 1D array
-y_train = pd.read_csv(os.path.join(project_dir, 'y_train.csv')).values.ravel() 
-y_test = pd.read_csv(os.path.join(project_dir, 'y_test.csv')).values.ravel() 
+y_train = pd.read_csv(os.path.join(preprocessing_dir, 'y_train.csv')).values.ravel() 
+y_test = pd.read_csv(os.path.join(preprocessing_dir, 'y_test.csv')).values.ravel() 
 
 print(f'Training rows: {len(X_train)} | Test rows: {len(X_test)}')
 print(f'Training class distribution: {pd.Series(y_train).value_counts().to_dict()}')

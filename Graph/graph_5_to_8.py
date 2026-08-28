@@ -12,7 +12,7 @@ sns.set_theme(style="whitegrid")
 plt.rcParams.update({"font.size": 10})
 
 # 2. Load Dataset & Clean Headers
-df = pd.read_csv("heart_disease_cleaned_full.csv")
+df = pd.read_csv("Preprocessing/heart_disease_cleaned_full.csv")
 df.columns = df.columns.str.strip()
 
 # Helper function for fuzzy column matching

@@ -27,10 +27,10 @@ RANDOM_STATE = 42
 
 def load_data():
     files = {
-        "X_train": ROOT / "X_train_preprocessed.csv",
-        "X_test": ROOT / "X_test_preprocessed.csv",
-        "y_train": ROOT / "y_train.csv",
-        "y_test": ROOT / "y_test.csv"
+        "X_train": ROOT / "Preprocessing" / "X_train_preprocessed.csv",
+        "X_test": ROOT / "Preprocessing" / "X_test_preprocessed.csv",
+        "y_train": ROOT / "Preprocessing" / "y_train.csv",
+        "y_test": ROOT / "Preprocessing" / "y_test.csv"
     }
 
     for name, path in files.items():

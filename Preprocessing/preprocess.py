@@ -7,7 +7,8 @@ from sklearn.impute import SimpleImputer
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, OrdinalEncoder, StandardScaler
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]
+PREPROCESSING_DIR = ROOT / 'Preprocessing'
 RANDOM_STATE = 42
 
 TARGET = 'Heart Disease Status'
@@ -35,6 +36,7 @@ def main():
     # ---------------------------------------------------------
     df = pd.read_csv(ROOT / 'heart_disease.csv')
     print(f"Dataset Shape: {df.shape[0]} rows, {df.shape[1]} columns")
+    print("[1/6] Loaded raw dataset")
 
     # ---------------------------------------------------------
     # REMOVE DUPLICATES
@@ -43,6 +45,7 @@ def main():
     if duplicate_count > 0:
         df = df.drop_duplicates().reset_index(drop=True)
         print(f"Duplicates removed: {duplicate_count}")
+    print(f"[2/6] Duplicate check complete: {df.duplicated().sum()} duplicates remain")
 
     # ---------------------------------------------------------
     # TARGET & TRAIN/TEST SPLIT
@@ -56,12 +59,13 @@ def main():
 
     X_train = X_train.copy()
     X_test = X_test.copy()
+    print(f"[3/6] Split data: {len(X_train)} training rows, {len(X_test)} test rows")
 
     # ---------------------------------------------------------
     # MISSING VALUES & IMPUTATION
     # ---------------------------------------------------------
-    X_train['Alcohol Consumption'] = X_train['Alcohol Consumption'].fillna('None')
-    X_test['Alcohol Consumption'] = X_test['Alcohol Consumption'].fillna('None')
+    X_train['Alcohol Consumption'] = X_train['Alcohol Consumption'].fillna('Unknown')
+    X_test['Alcohol Consumption'] = X_test['Alcohol Consumption'].fillna('Unknown')
 
     num_cols = X_train.select_dtypes(include=[np.number]).columns.tolist()
     cat_cols = X_train.select_dtypes(include=['object', 'str']).columns.tolist()
@@ -74,20 +78,25 @@ def main():
     X_train[cat_cols] = cat_imputer.fit_transform(X_train[cat_cols])
     X_test[cat_cols] = cat_imputer.transform(X_test[cat_cols])
 
+    print("[4/6] Missing values handled in training and test data")
+
     # ---------------------------------------------------------
     # ENCODING (ORDINAL & BINARY)
     # ---------------------------------------------------------
+    encoders = {}
     for col, categories in ORDINAL_MAPPINGS.items():
         encoder = OrdinalEncoder(
             categories=[categories],
             handle_unknown='use_encoded_value',
             unknown_value=-1
         )
+        encoders[col] = encoder
         X_train[col] = encoder.fit_transform(X_train[[col]]).ravel()
         X_test[col] = encoder.transform(X_test[[col]]).ravel()
 
     for col in BINARY_COLS:
         encoder = LabelEncoder()
+        encoders[col] = encoder
         X_train[col] = encoder.fit_transform(X_train[col])
         X_test[col] = encoder.transform(X_test[col])
 
@@ -97,18 +106,34 @@ def main():
     scaler = StandardScaler()
     X_train[num_cols] = scaler.fit_transform(X_train[num_cols])
     X_test[num_cols] = scaler.transform(X_test[num_cols])
+    print("[5/6] Encoding and scaling complete")
+
+    cleaned_df = df.copy()
+    cleaned_df['Alcohol Consumption'] = cleaned_df['Alcohol Consumption'].fillna('Unknown')
+    cleaned_df[num_cols] = num_imputer.transform(cleaned_df[num_cols])
+    cleaned_df[cat_cols] = cat_imputer.transform(cleaned_df[cat_cols])
 
     # ---------------------------------------------------------
     # SAVE PREPROCESSED DATA & SCALER
     # ---------------------------------------------------------
-    X_train.to_csv(ROOT / 'X_train_preprocessed.csv', index=False)
-    X_test.to_csv(ROOT / 'X_test_preprocessed.csv', index=False)
-    y_train.to_csv(ROOT / 'y_train.csv', index=False)
-    y_test.to_csv(ROOT / 'y_test.csv', index=False)
+    PREPROCESSING_DIR.mkdir(exist_ok=True)
+    X_train.to_csv(PREPROCESSING_DIR / 'X_train_preprocessed.csv', index=False)
+    X_test.to_csv(PREPROCESSING_DIR / 'X_test_preprocessed.csv', index=False)
+    y_train.to_csv(PREPROCESSING_DIR / 'y_train.csv', index=False)
+    y_test.to_csv(PREPROCESSING_DIR / 'y_test.csv', index=False)
 
-    joblib.dump(scaler, ROOT / 'shared_scaler.pkl')
-    df.to_csv(ROOT / 'heart_disease_cleaned_full.csv', index=False)
+    joblib.dump(scaler, PREPROCESSING_DIR / 'shared_scaler.pkl')
+    joblib.dump(encoders, PREPROCESSING_DIR / 'feature_encoders.pkl')
+    cleaned_df.to_csv(PREPROCESSING_DIR / 'heart_disease_cleaned_full.csv', index=False)
 
+    print("[6/6] Files saved:")
+    print(f"       - {PREPROCESSING_DIR / 'heart_disease_cleaned_full.csv'}")
+    print(f"       - {PREPROCESSING_DIR / 'X_train_preprocessed.csv'}")
+    print(f"       - {PREPROCESSING_DIR / 'X_test_preprocessed.csv'}")
+    print(f"       - {PREPROCESSING_DIR / 'y_train.csv'}")
+    print(f"       - {PREPROCESSING_DIR / 'y_test.csv'}")
+    print(f"       - {PREPROCESSING_DIR / 'shared_scaler.pkl'}")
+    print(f"       - {PREPROCESSING_DIR / 'feature_encoders.pkl'}")
     print("\nPREPROCESSING COMPLETED")
 
 if __name__ == '__main__':

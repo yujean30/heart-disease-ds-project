@@ -34,7 +34,7 @@ def load_baseline_artifacts():
 @st.cache_resource
 def load_rf_artifacts():
     model_path = 'random_forest/random_forest_model/random_forest_tuned.joblib'
-    scaler_path = 'shared_scaler.pkl'
+    scaler_path = 'Preprocessing/shared_scaler.pkl'
     if os.path.exists(model_path) and os.path.exists(scaler_path):
         return joblib.load(model_path), joblib.load(scaler_path)
     st.error("Random Forest model or scaler missing!")
@@ -43,7 +43,7 @@ def load_rf_artifacts():
 @st.cache_resource
 def load_svm_artifacts():
     model_path = 'SVM_Model/best_svm_xgb_hybrid_model.joblib'
-    scaler_path = 'shared_scaler.pkl'
+    scaler_path = 'Preprocessing/shared_scaler.pkl'
     if os.path.exists(model_path) and os.path.exists(scaler_path):
         return joblib.load(model_path), joblib.load(scaler_path)
     return None, None

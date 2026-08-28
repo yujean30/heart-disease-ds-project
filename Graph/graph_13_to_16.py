@@ -6,7 +6,7 @@ import seaborn as sns
 sns.set_theme(style="whitegrid")
 
 # Load dataset
-df = pd.read_csv("heart_disease_cleaned_full.csv")
+df = pd.read_csv("Preprocessing/heart_disease_cleaned_full.csv")
 
 
 # ============================================================================
