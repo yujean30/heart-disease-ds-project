@@ -36,6 +36,9 @@ if "sugar_choice" not in st.session_state:
 
 if "exercise_choice" not in st.session_state:
     st.session_state["exercise_choice"] = "Medium"
+    
+if "stress_choice" not in st.session_state:
+    st.session_state["stress_choice"] = "Medium"
 
 # ---------------------------------------------------------
 # 2. Header Section
@@ -676,6 +679,293 @@ def render_speedtest_gauge(current_val, threshold, status_text="TESTING..."):
     return fig
 
 # ---------------------------------------------------------
+# Helper 5: Stress Gauge
+# ---------------------------------------------------------
+def create_stress_gauge(current_selection="Medium"):
+    fig = go.Figure()
+
+    # -----------------------------------------------------
+    # Dark glassmorphism container
+    # -----------------------------------------------------
+    fig.add_shape(
+        type="rect",
+        x0=-1.35, y0=-0.38,
+        x1=1.35, y1=1.45,
+        fillcolor="#0f172a",
+        line=dict(color="#334155", width=2),
+        layer="below"
+    )
+
+    r_outer = 0.95
+    r_inner = 0.60
+
+    # -----------------------------------------------------
+    # Stress levels
+    # -----------------------------------------------------
+    segments = [
+        {
+            "name": "Low",
+            "color": "#10b981",
+            "angles": (180, 120),
+            "label_angle": 150,
+            "emoji": "🥰"
+        },
+        {
+            "name": "Medium",
+            "color": "#f59e0b",
+            "angles": (120, 60),
+            "label_angle": 90,
+            "emoji": "😕"
+        },
+        {
+            "name": "High",
+            "color": "#ef4444",
+            "angles": (60, 0),
+            "label_angle": 30,
+            "emoji": "🤯"
+        }
+    ]
+
+    # -----------------------------------------------------
+    # DRAW CLICKABLE GAUGE CURVES
+    # -----------------------------------------------------
+    for seg in segments:
+
+        a_start, a_end = seg["angles"]
+
+        theta = np.linspace(
+            np.radians(a_start),
+            np.radians(a_end),
+            60
+        )
+
+        # Outer arc
+        x_out = r_outer * np.cos(theta)
+        y_out = r_outer * np.sin(theta)
+
+        # Inner arc
+        x_in = r_inner * np.cos(theta)[::-1]
+        y_in = r_inner * np.sin(theta)[::-1]
+
+        x_path = np.concatenate([x_out, x_in])
+        y_path = np.concatenate([y_out, y_in])
+
+        # IMPORTANT:
+        # Attach stress name to EVERY point
+        custom_data = [seg["name"]] * len(x_path)
+
+        fig.add_trace(
+            go.Scatter(
+                x=x_path,
+                y=y_path,
+                mode="lines",
+                fill="toself",
+                fillcolor=seg["color"],
+                line=dict(
+                    color=seg["color"],
+                    width=4
+                ),
+                customdata=custom_data,
+
+                # Remove Trace 0 / Trace 1 / Trace 2
+                name="",
+
+                # Show only your own hover text
+                hovertemplate=(
+                    f"<b>{seg['name']} Stress</b>"
+                ),
+
+                showlegend=False
+            )
+        )
+
+    # -----------------------------------------------------
+    # CLICKABLE EMOJIS
+    # -----------------------------------------------------
+    r_emoji = r_outer + 0.22
+
+    emoji_x = []
+    emoji_y = []
+    emoji_text = []
+    emoji_hover = []
+    emoji_customdata = []
+
+    for seg in segments:
+
+        angle = np.radians(seg["label_angle"])
+
+        x = r_emoji * np.cos(angle)
+        y = r_emoji * np.sin(angle)
+
+        emoji_x.append(x)
+        emoji_y.append(y)
+
+        # Bigger emoji when selected
+        if seg["name"] == current_selection:
+            emoji_text.append(
+                f"<span style='font-size:36px'>{seg['emoji']}</span>"
+            )
+        else:
+            emoji_text.append(
+                f"<span style='font-size:27px'>{seg['emoji']}</span>"
+            )
+
+        emoji_hover.append(
+            f"{seg['name']} Stress"
+        )
+
+        emoji_customdata.append(seg["name"])
+
+    # -----------------------------------------------------
+    # IMPORTANT:
+    # Invisible marker makes emoji area clickable
+    # -----------------------------------------------------
+    fig.add_trace(
+        go.Scatter(
+            x=emoji_x,
+            y=emoji_y,
+
+            mode="text+markers",
+
+            text=emoji_text,
+            textposition="middle center",
+
+            marker=dict(
+                size=55,
+                color="rgba(0,0,0,0)",
+                line=dict(
+                    color="rgba(0,0,0,0)"
+                )
+            ),
+
+            customdata=emoji_customdata,
+
+            hoverinfo="text",
+            hovertext=emoji_hover,
+
+            showlegend=False
+        )
+    )
+
+    # -----------------------------------------------------
+    # NEEDLE
+    # -----------------------------------------------------
+    angle_deg = {
+        "Low": 150,
+        "Medium": 90,
+        "High": 30
+    }.get(current_selection, 90)
+
+    angle_rad = np.radians(angle_deg)
+
+    needle_len = 0.80
+
+    nx = needle_len * np.cos(angle_rad)
+    ny = needle_len * np.sin(angle_rad)
+
+    fig.add_shape(
+        type="line",
+        x0=0,
+        y0=0,
+        x1=nx,
+        y1=ny,
+        line=dict(
+            color="#f8fafc",
+            width=6
+        ),
+        layer="above"
+    )
+
+    # -----------------------------------------------------
+    # OUTER PIVOT
+    # -----------------------------------------------------
+    fig.add_shape(
+        type="circle",
+        x0=-0.14,
+        y0=-0.14,
+        x1=0.14,
+        y1=0.14,
+        fillcolor="#38bdf8",
+        line=dict(
+            color="#f8fafc",
+            width=2.5
+        ),
+        layer="above"
+    )
+
+    # -----------------------------------------------------
+    # INNER PIVOT
+    # -----------------------------------------------------
+    fig.add_shape(
+        type="circle",
+        x0=-0.05,
+        y0=-0.05,
+        x1=0.05,
+        y1=0.05,
+        fillcolor="#0f172a",
+        line=dict(
+            color="rgba(0,0,0,0)"
+        ),
+        layer="above"
+    )
+
+    # -----------------------------------------------------
+    # TITLE
+    # -----------------------------------------------------
+    fig.add_annotation(
+        x=0,
+        y=-0.22,
+        text="<b>STRESS LEVEL</b>",
+        showarrow=False,
+        font=dict(
+            size=14,
+            color="#f8fafc",
+            family="Arial Black"
+        )
+    )
+
+    # -----------------------------------------------------
+    # AXES
+    # -----------------------------------------------------
+    fig.update_xaxes(
+        range=[-1.4, 1.4],
+        visible=False,
+        fixedrange=True
+    )
+
+    fig.update_yaxes(
+        range=[-0.45, 1.45],
+        visible=False,
+        fixedrange=True
+    )
+
+    # -----------------------------------------------------
+    # LAYOUT
+    # -----------------------------------------------------
+    fig.update_layout(
+        height=300,
+
+        margin=dict(
+            l=10,
+            r=10,
+            t=10,
+            b=10
+        ),
+
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+
+        # IMPORTANT
+        clickmode="event+select",
+
+        hovermode="closest",
+
+        dragmode=False
+    )
+
+    return fig
+
+# ---------------------------------------------------------
 # 6. Tabs
 # ---------------------------------------------------------
 tab1, tab2, tab3, tab_eda = st.tabs([
@@ -733,8 +1023,50 @@ with tab1:
             age = st.number_input("Age (Years)", min_value=18, max_value=100, value=50)
             sleep = st.number_input("Sleep Hours per Day", min_value=2.0, max_value=14.0, value=7.0)
             
-            stress_option = st.radio("🧘 Stress Level", ["🟢 Low", "🟡 Medium", "🔴 High"], index=1)
-            stress = "Low" if "Low" in stress_option else ("Medium" if "Medium" in stress_option else "High")
+            st.write("*🧘 Stress Level (Click directly on gauge):*")
+            stress_fig = create_stress_gauge(st.session_state["stress_choice"])
+
+            stress_event = st.plotly_chart(
+            stress_fig,
+            use_container_width=True,
+            on_select="rerun",
+            key="stress_gauge_direct",
+            selection_mode="points",
+        )
+
+        # -----------------------------------------------------
+        # Detect click on BOTH:
+        # 1. Emoji
+        # 2. Colored gauge curve
+        # -----------------------------------------------------
+        if (
+            stress_event
+            and "selection" in stress_event
+            and len(stress_event["selection"]["points"]) > 0
+        ):
+            selected_point = stress_event["selection"]["points"][0]
+
+            new_stress = None
+
+            if "customdata" in selected_point:
+                new_stress = selected_point["customdata"]
+
+            if isinstance(new_stress, list):
+                new_stress = new_stress[0]
+
+            if new_stress in ["Low", "Medium", "High"]:
+
+                if new_stress != st.session_state["stress_choice"]:
+                    st.session_state["stress_choice"] = new_stress
+                    st.rerun()
+
+        stress = st.session_state["stress_choice"]
+
+        st.info(
+            f"Active Stress Setting: *{stress}*"
+        )
+
+        st.markdown("---")
 
     # =========================================================
     # CATEGORY 2: Interactive Lifestyle & Intake
