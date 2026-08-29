@@ -78,11 +78,43 @@ def load_rf_artifacts():
 
 @st.cache_resource
 def load_svm_artifacts():
-    model_path = 'SVM_Model/best_svm_xgb_hybrid_model.joblib'
-    scaler_path = 'shared_scaler.pkl'
-    if os.path.exists(model_path) and os.path.exists(scaler_path):
-        return joblib.load(model_path), joblib.load(scaler_path)
-    return None, None
+    model_path = "SVM_Model/best_svm_model.joblib"
+    scaler_path = "Preprocessing/shared_scaler.pkl"
+    encoder_path = "Preprocessing/feature_encoders.pkl"
+    threshold_path = "SVM_Model/svm_decision_threshold.joblib"
+    required_files = [
+        model_path,
+        scaler_path,
+        encoder_path,
+        threshold_path
+    ]
+    missing_files = [
+        path for path in required_files
+        if not os.path.exists(path)
+    ]
+    if missing_files:
+        return (
+            None,
+            None,
+            None,
+            None,
+            missing_files
+        )
+    try:
+        model = joblib.load(model_path)
+        scaler = joblib.load(scaler_path)
+        encoders = joblib.load(encoder_path)
+        threshold = joblib.load(threshold_path)
+        return (
+            model,
+            scaler,
+            encoders,
+            threshold,
+            []
+        )
+    except Exception as e:
+        return (None,None,None,None,[f"Loading error: {e}"])
+
 
 @st.cache_resource
 def load_knn_artifacts():
@@ -92,9 +124,11 @@ def load_knn_artifacts():
         return joblib.load(model_path), joblib.load(scaler_path)
     return None, None
 
+
+
 lr_model, lr_scaler = load_baseline_artifacts()
 rf_model, rf_scaler = load_rf_artifacts()
-svm_model, svm_scaler = load_svm_artifacts()
+(svm_model,svm_scaler,svm_encoders,svm_threshold,svm_missing_files) = load_svm_artifacts()
 knn_model, knn_scaler = load_knn_artifacts()
 
 # ---------------------------------------------------------
@@ -106,10 +140,12 @@ st.write("## 📊 Model Comparison")
 display_metric_columns = ["Accuracy", "Precision", "Recall", "F1-Score", "ROC-AUC"]
 highlight_targets = ["Accuracy", "Precision", "Recall", "F1-Score", "ROC-AUC"]
 
+
 lr_metrics_path = 'Logistic_Regression_Model/lr_baseline_metrics.csv'
 rf_metrics_path = 'random_forest/random_forest_model/metrics.csv'
-svm_metrics_path = 'SVM_Model/svm_xgb_metrics.csv'
+svm_metrics_path = "SVM_Model/svm_metrics.csv"
 knn_metrics_path = 'KNN_Model/knn_baseline_metrics.csv'
+
 
 if os.path.exists(lr_metrics_path) and os.path.exists(rf_metrics_path):
     df_lr = pd.read_csv(lr_metrics_path)
@@ -117,11 +153,10 @@ if os.path.exists(lr_metrics_path) and os.path.exists(rf_metrics_path):
 
     df_lr['Model'] = 'Logistic Regression'
     df_rf['Model'] = 'Random Forest'
-
-    comparison_frames = [df_lr, df_rf]
+    comparison_frames = [df_lr,df_rf]
     if os.path.exists(svm_metrics_path):
         df_svm = pd.read_csv(svm_metrics_path)
-        df_svm['Model'] = 'SVM'
+        df_svm["Model"] = "SVM"
         comparison_frames.append(df_svm)
     if os.path.exists(knn_metrics_path):
         df_knn = pd.read_csv(knn_metrics_path)
@@ -132,18 +167,40 @@ if os.path.exists(lr_metrics_path) and os.path.exists(rf_metrics_path):
         df_knn['Model'] = 'KNN'
         comparison_frames.append(df_knn)
 
-    df_compare = pd.concat(comparison_frames, ignore_index=True)
-    df_compare = df_compare[["Model", *display_metric_columns]]
-
-    best_model_idx = df_compare['F1-Score'].idxmax()
-    best_model_name = df_compare.loc[best_model_idx, 'Model']
+    df_compare = pd.concat( comparison_frames,ignore_index=True)
+    available_columns = [
+        column
+        for column in display_metric_columns
+        if column in df_compare.columns
+    ]
+    df_compare = df_compare[
+        ["Model", *available_columns]
+    ]
+    if "F1-Score" in df_compare.columns:
+        best_model_idx = df_compare["F1-Score"].idxmax()
+        best_model_name = df_compare.loc[
+            best_model_idx,
+            "Model"
+        ]
+    else:
+        best_model_name = "N/A"
 
     styled_df = df_compare.style.highlight_max(
-        subset=highlight_targets,
-        color='#bbf7d0',
+        subset=[
+            col
+            for col in highlight_targets
+            if col in df_compare.columns
+        ],
+        color="#bbf7d0",
         axis=0
-    ).format({col: "{:.4f}" for col in display_metric_columns})
+    )
 
+    styled_df = styled_df.format(
+        {
+            col: "{:.4f}"
+            for col in available_columns
+        }
+    )
     st.write("### Model Comparison Table")
     st.dataframe(styled_df, width="stretch")
 
@@ -191,14 +248,15 @@ else:
 
 st.markdown("---")
 
-# ---------------------------------------------------------
-# 5. Model Selection
-# ---------------------------------------------------------
+# =========================================================
+# 6. MODEL SELECTION
+# =========================================================
 st.write("### Select Prediction Model")
 model_choice = st.selectbox(
     "Choose a model:",
     ["Logistic Regression (Baseline)", "Random Forest", "SVM", "KNN"]
 )
+
 
 if model_choice == "Logistic Regression (Baseline)":
     model, scaler = lr_model, lr_scaler
@@ -223,13 +281,47 @@ elif model_choice == "KNN":
     cm_path = 'KNN_Model/knn_confusion_matrix.png'
     roc_path = 'KNN_Model/knn_roc_curve.png'
     decision_threshold = 0.5
-else:
-    model, scaler = svm_model, svm_scaler
-    metrics_path = 'SVM_Model/svm_xgb_metrics.csv'
-    cm_path = 'SVM_Model/svm_xgb_confusion_matrix.png'
-    roc_path = 'SVM_Model/svm_xgb_roc_curve.png'
-    threshold_path = 'SVM_Model/svm_xgb_decision_threshold.joblib'
-    decision_threshold = joblib.load(threshold_path) if os.path.exists(threshold_path) else 0.5
+elif model_choice == "SVM":
+    model = svm_model
+    scaler = svm_scaler
+    metrics_path = "SVM_Model/svm_metrics.csv"
+    cm_path = "SVM_Model/svm_confusion_matrix.png"
+    roc_path = "SVM_Model/svm_roc_curve.png"
+    decision_threshold = (
+        svm_threshold
+        if svm_threshold is not None
+        else 0.5
+    )
+
+if model_choice == "SVM":
+    if svm_model is None:
+        st.error(
+            "❌ SVM model could not be loaded."
+        )
+        st.write("Required SVM files:")
+        st.code(
+            "\n".join(
+                [
+                    "SVM_Model/best_svm_model.joblib",
+                    "Preprocessing/shared_scaler.pkl",
+                    "Preprocessing/feature_encoders.pkl",
+                    "SVM_Model/svm_decision_threshold.joblib"
+                ]
+            )
+        )
+        if svm_missing_files:
+            st.warning("Missing/problematic files:")
+
+            for file in svm_missing_files:
+                st.write(f"- `{file}`")
+    else:
+        st.success(
+            "✅ SVM model loaded successfully."
+        )
+        st.caption(
+            f"SVM decision threshold: "
+            f"{decision_threshold:.4f}"
+        )
 
 # ---------------------------------------------------------
 # Helper 0: 3D Gender Interactive Avatar Cards
@@ -320,6 +412,7 @@ def create_3d_gender_cards(current_choice):
     )
     return fig
 
+
 # ---------------------------------------------------------
 # Helper 0.5: 3D Luxury Smoking Status Interactive Cards (With Clean Lungs Vector)
 # ---------------------------------------------------------
@@ -405,6 +498,7 @@ def create_3d_smoking_cards(current_choice):
         clickmode='event+select'
     )
     return fig
+
 
 # ---------------------------------------------------------
 # Helper 1: Action-Animated 3D Exercise Stages
@@ -534,6 +628,7 @@ def create_animated_action_stages(current_choice, anim_step=0):
     )
     return fig
 
+
 # ---------------------------------------------------------
 # Helper 2: 3D Cartoon Wine Glass Visualizer (Compact Sizing)
 # ---------------------------------------------------------
@@ -589,6 +684,7 @@ def create_3d_cartoon_bottle(current_choice):
         clickmode='event+select'
     )
     return fig
+
 
 # ---------------------------------------------------------
 # Helper 3: 3D Cartoon Boba Cup (3-Tier Scaled Cup for Sugar)
@@ -983,7 +1079,19 @@ with tab1:
 
     col1, col2, col3 = st.columns(3)
 
-    # =========================================================
+    # =====================================================
+    # COLUMN 1
+    # =====================================================
+
+    with col1:
+
+        with st.container(border=True):
+
+            st.write(
+                "##### 👤 Demographics & Habits"
+            )
+
+# =========================================================
     # CATEGORY 1: Demographics & Personal Lifestyle
     # =========================================================
     with col1:
@@ -1068,7 +1176,7 @@ with tab1:
 
         st.markdown("---")
 
-    # =========================================================
+# =========================================================
     # CATEGORY 2: Interactive Lifestyle & Intake
     # =========================================================
     with col2:
@@ -1160,14 +1268,21 @@ with tab1:
             homocysteine = st.number_input("Homocysteine Level (µmol/L)", min_value=0.0, max_value=30.0, value=10.0)
 
     st.markdown("---")
-
     if st.button("🚀 START SPEEDTEST RISK ANALYSIS", type="primary", use_container_width=True):
-        if model is not None and scaler is not None:
+        if model is None:
+            st.error(
+                f"❌ {model_choice} model is not available."
+            )
+        elif scaler is None:
+            st.error(
+                f"❌ {model_choice} scaler is not available."
+            )
+        else:
             input_dict = {
-                'Age': age,
+                "Age": age,
                 'Gender': 1 if gender == "Male" else 0,
-                'Blood Pressure': bp,
-                'Cholesterol Level': chol,
+                "Blood Pressure": bp,
+                "Cholesterol Level": chol,
                 'Exercise Habits': {"Low": 0, "Medium": 1, "High": 2}[exercise],
                 'Smoking': 1 if smoking == "Yes" else 0,
                 'Family Heart Disease': 1 if family_history == "Yes" else 0,
@@ -1181,92 +1296,168 @@ with tab1:
                 'Sleep Hours': sleep,
                 'Sugar Consumption': {"Low": 0, "Medium": 1, "High": 2}[sugar],
                 'Triglyceride Level': triglycerides,
-                'Fasting Blood Sugar': fbs,
-                'CRP Level': crp,
+                'Fasting Blood Sugar': fbs,                    'CRP Level': crp,
                 'Homocysteine Level': homocysteine
             }
-
             input_df = pd.DataFrame([input_dict])
-            num_cols = ['Age', 'Blood Pressure', 'Cholesterol Level', 'BMI', 'Sleep Hours',
-                        'Triglyceride Level', 'Fasting Blood Sugar', 'CRP Level', 'Homocysteine Level']
-
-            if model_choice == "KNN":
-                input_df = input_df.reindex(columns=scaler.feature_names_in_)
-                input_df = pd.DataFrame(
-                    scaler.transform(input_df),
-                    columns=input_df.columns,
-                    index=input_df.index
-                )
-            else:
-                input_df[num_cols] = scaler.transform(input_df[num_cols])
-
-            final_probability = float(model.predict_proba(input_df)[0][1])
-            target_pct = final_probability * 100
-            
-            st.markdown(f"### 🎯 Real-Time Diagnostic SpeedTest ({model_choice})")
-            
-            res_col1, res_col2 = st.columns([1.3, 1.7])
-            with res_col1:
-                speedtest_placeholder = st.empty()
-            with res_col2:
-                status_box = st.empty()
-
-            # Smooth Slow Speedtest Needle Movement
-            slow_steps = 35
-            for i in range(1, slow_steps + 1):
-                interp_val = (target_pct / slow_steps) * i
-                speedtest_placeholder.plotly_chart(
-                    render_speedtest_gauge(interp_val, decision_threshold, status_text=f"⚡ READING SENSORS ({interp_val:.1f}%)..."),
-                    use_container_width=True,
-                    key=f"gauge_rise_{i}"
-                )
-                time.sleep(0.08)
-
-            jitter_offsets = [2.2, -1.6, 1.1, -0.6, 0.2, 0.0]
-            for j_idx, offset in enumerate(jitter_offsets):
-                j_val = min(100.0, max(0.0, target_pct + offset))
-                speedtest_placeholder.plotly_chart(
-                    render_speedtest_gauge(j_val, decision_threshold, status_text="📡 STABILIZING DATA MATRIX..."),
-                    use_container_width=True,
-                    key=f"gauge_jitter_{j_idx}"
-                )
-                time.sleep(0.12)
-
-            speedtest_placeholder.plotly_chart(
-                render_speedtest_gauge(target_pct, decision_threshold, status_text="✅ TEST COMPLETE - LOCKED"),
-                use_container_width=True,
-                key="gauge_final_locked"
-            )
-
-            with status_box.container(border=True):
-                st.metric(label="Calculated Disease Probability", value=f"{target_pct:.1f}%")
-                st.metric(label="Model Decision Threshold", value=f"{decision_threshold * 100:.1f}%")
-                if final_probability >= decision_threshold:
-                    st.error("⚠️ **HIGH RISK**: Patient shows symptoms/risk patterns for Heart Disease.")
+            num_cols = [
+                "Age",
+                "Blood Pressure",
+                "Cholesterol Level",
+                "BMI",
+                "Sleep Hours",
+                "Triglyceride Level",
+                "Fasting Blood Sugar",
+                "CRP Level",
+                "Homocysteine Level"
+            ]
+            try:
+                if model_choice == "KNN":
+                    input_df = input_df.reindex(columns=scaler.feature_names_in_)
+                    input_df = pd.DataFrame(
+                        scaler.transform(input_df),
+                        columns=input_df.columns,
+                        index=input_df.index
+                    )
                 else:
-                    st.success("✅ **LOW RISK**: Patient is unlikely to have Heart Disease.")
+                    input_df[num_cols] = scaler.transform(input_df[num_cols])
 
-# ---------------------------------------------------------
-# TAB 2: Performance Metrics
-# ---------------------------------------------------------
+                final_probability = float(model.predict_proba(input_df)[0][1])
+                target_pct = final_probability * 100
+
+                st.markdown(f"### 🎯 Real-Time Diagnostic SpeedTest ({model_choice})")
+
+                res_col1, res_col2 = st.columns([1.3, 1.7])
+                with res_col1:
+                    speedtest_placeholder = (st.empty())
+                with res_col2:
+                    status_box = st.empty()
+                    
+                # Smooth Slow Speedtest Needle Movement
+                slow_steps = 35
+                for i in range(1,slow_steps + 1):
+                    interp_val = (target_pct/ slow_steps* i)
+                    speedtest_placeholder.plotly_chart(
+                        render_speedtest_gauge(interp_val,decision_threshold,status_text=("⚡ READING SENSORS "f"({interp_val:.1f}%)...")),
+                        use_container_width=True,
+                        key=f"gauge_rise_{i}"
+                    )
+                    time.sleep(0.08)
+
+                jitter_offsets = [2.2, -1.6, 1.1, -0.6, 0.2, 0.0]
+                for j_idx, offset in enumerate(jitter_offsets):
+                    j_val = min(100.0, max(0.0, target_pct + offset))
+                    speedtest_placeholder.plotly_chart(
+                        render_speedtest_gauge(j_val, decision_threshold, status_text="📡 STABILIZING DATA MATRIX..."),
+                        use_container_width=True,
+                        key=f"gauge_jitter_{j_idx}"
+                    )
+                    time.sleep(0.12)
+
+                speedtest_placeholder.plotly_chart(
+                    render_speedtest_gauge(target_pct, decision_threshold, status_text="✅ TEST COMPLETE - LOCKED"),
+                    use_container_width=True,
+                    key="gauge_final_locked"
+                )
+
+                with status_box.container(
+                    border=True
+                ):
+                    st.metric(
+                        label="Calculated Disease Probability",
+                        value=f"{target_pct:.1f}%"
+                    )
+                    st.metric(
+                        label="Model Decision Threshold",
+                        value=(
+                            f"{decision_threshold * 100:.1f}%"
+                        )
+                    )
+                    if (
+                        final_probability
+                        >= decision_threshold
+                    ):
+
+                        st.error(
+                            "⚠️ **HIGH RISK**: Patient "
+                            "shows symptoms/risk patterns "
+                            "for Heart Disease."
+                        )
+                    else:
+
+                        st.success(
+                            "✅ **LOW RISK**: Patient is "
+                            "unlikely to have Heart Disease."
+                        )
+            except Exception as e:
+                st.error("❌ Prediction failed.")
+
+                st.exception(e)
+
+
+# =========================================================
+# TAB 2: PERFORMANCE METRICS
+# =========================================================
+
 with tab2:
-    st.write(f"### 📊 {model_choice} Model Metrics & Diagnostic Plots")
+
+    st.write(
+        f"### 📊 {model_choice} Model "
+        f"Metrics & Diagnostic Plots"
+    )
 
     if os.path.exists(metrics_path):
-        df_metrics = pd.read_csv(metrics_path)
+
+        df_metrics = pd.read_csv(
+            metrics_path
+        )
+
         available_metrics = [
-            column for column in display_metric_columns
+            column
+            for column in display_metric_columns
             if column in df_metrics.columns
         ]
-        st.dataframe(df_metrics[available_metrics].style.format("{:.2%}"), width="stretch")
+
+        if available_metrics:
+
+            st.dataframe(
+                df_metrics[
+                    available_metrics
+                ].style.format("{:.2%}"),
+                width="stretch"
+            )
+
+        else:
+
+            st.warning(
+                "No standard evaluation metrics "
+                "were found in the selected CSV."
+            )
+
+    else:
+
+        st.warning(
+            f"Metrics file not found: "
+            f"`{metrics_path}`"
+        )
+
 
     col_img1, col_img2 = st.columns(2)
+
+
     with col_img1:
         if os.path.exists(cm_path):
             st.image(Image.open(cm_path), caption=f"{model_choice} Confusion Matrix", width="stretch")
+        else:
+            st.info("Confusion matrix not available.")
+
+
     with col_img2:
         if os.path.exists(roc_path):
             st.image(Image.open(roc_path), caption=f"{model_choice} ROC Curve", width="stretch")
+        else:
+            st.info("ROC curve not available.")
+
 
 # ---------------------------------------------------------
 # TAB 3: Auto‑Generated Samples
@@ -1285,6 +1476,7 @@ with tab3:
 
         num_cols = ['Age','Blood Pressure','Cholesterol Level','BMI','Sleep Hours',
                     'Triglyceride Level','Fasting Blood Sugar','CRP Level','Homocysteine Level']
+
 
         def generate_sample(label):
             samples = []
@@ -1352,17 +1544,16 @@ with tab3:
             'Homocysteine Level': (0, 30)
         }
         for col, (low, high) in valid_ranges.items():
-            if col in df_low.columns:
-                df_low[col] = df_low[col].clip(lower=low, upper=high)
-            if col in df_high.columns:
-                df_high[col] = df_high[col].clip(lower=low, upper=high)
-
+                if col in df_low.columns:
+                    df_low[col] = df_low[col].clip(lower=low, upper=high)
+                if col in df_high.columns:
+                    df_high[col] = df_high[col].clip(lower=low, upper=high)        
         df_low['Age'] = df_low['Age'].astype(int)
         df_high['Age'] = df_high['Age'].astype(int)
-
+        
         scaled_low = df_low.copy()
         scaled_high = df_high.copy()
-
+        
         if model_choice == "KNN":
             knn_columns = scaler.feature_names_in_
             scaled_low = pd.DataFrame(
@@ -1378,16 +1569,16 @@ with tab3:
         else:
             scaled_low[num_cols] = scaler.transform(df_low[num_cols])
             scaled_high[num_cols] = scaler.transform(df_high[num_cols])
-
+        
         df_low['Predicted Probability'] = model.predict_proba(scaled_low)[:, 1]
         df_low['Predicted Risk'] = np.where(df_low['Predicted Probability'] >= decision_threshold, "High Risk", "Low Risk")
-
+        
         df_high['Predicted Probability'] = model.predict_proba(scaled_high)[:, 1]
         df_high['Predicted Risk'] = np.where(df_high['Predicted Probability'] >= decision_threshold, "High Risk", "Low Risk")
-
+    
         df_low = df_low[df_low['Predicted Risk'] == 'Low Risk']
         df_high = df_high[df_high['Predicted Risk'] == 'High Risk']
-
+        
         mapping_dict = {
             'Gender': {0: 'Female', 1: 'Male'},
             'Exercise Habits': {0: 'Low', 1: 'Medium', 2: 'High'},
@@ -1406,14 +1597,15 @@ with tab3:
                 df_low[col] = df_low[col].map(mapping)
             if col in df_high.columns:
                 df_high[col] = df_high[col].map(mapping)
-
+        
         st.write("#### 🟢 Low‑Risk Samples (Predicted)")
         st.dataframe(df_low, width="stretch")
-
+        
         st.write("#### 🔴 High‑Risk Samples (Predicted)")
         st.dataframe(df_high, width="stretch")
-
+        
         st.success("✅ Synthetic samples generated and validated successfully.")
+
 
 # ---------------------------------------------------------
 # TAB 4: EDA
