@@ -224,7 +224,7 @@ plt.close()
 
 
 # =========================================================================
-# GRAPH 10: Mean Sleep Duration Across Stress Levels
+# GRAPH 10: Stress Level and Daily Sleep Hours by Heart Disease Status
 # =========================================================================
 
 # Create Stress Level if it does not already exist
@@ -261,11 +261,11 @@ if (
     )
 
     plt.title(
-        "Graph 10: Mean Sleep Duration Across Stress Levels"
+        "Graph 10: Stress Level and Daily Sleep Hours by Heart Disease Status"
     )
 
     plt.xlabel("Stress Level")
-    plt.ylabel("Mean Daily Sleep (Hours)")
+    plt.ylabel("Daily Sleep (Hours)")
 
     plt.legend(
         title="Heart Disease Status",
@@ -292,7 +292,7 @@ else:
     )
 
 # =========================================================================
-# GRAPH 11: Data Completeness Audit
+# GRAPH 11: Missing Value
 # =========================================================================
 
 missing_pct = (
@@ -323,7 +323,7 @@ sns.barplot(
 )
 
 plt.title(
-    "Graph 11: Data Completeness Audit (Missingness Percentage)"
+    "Graph 11: Missing Value"
 )
 
 plt.xlabel("")
@@ -358,7 +358,7 @@ plt.close()
 
 
 # =========================================================================
-# GRAPH 12: CRP Level Across Alcohol Habits
+# GRAPH 12: CRP Level across Alcohol Consumption Categories
 # =========================================================================
 
 if (
@@ -413,7 +413,7 @@ if (
     )
 
     plt.title(
-        "Graph 12: Inflammatory Marker (CRP Level) across Alcohol Habits"
+        "Graph 12: CRP Level across Alcohol Consumption Categories"
     )
 
     plt.xlabel("Alcohol Consumption")
