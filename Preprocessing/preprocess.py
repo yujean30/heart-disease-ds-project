@@ -35,6 +35,7 @@ def main():
     # LOAD DATA
     # ---------------------------------------------------------
     df = pd.read_csv(ROOT / 'heart_disease.csv')
+    df = df.replace('Unknown', np.nan)
     print(f"Dataset Shape: {df.shape[0]} rows, {df.shape[1]} columns")
     print("[1/6] Loaded raw dataset")
 
@@ -64,9 +65,6 @@ def main():
     # ---------------------------------------------------------
     # MISSING VALUES & IMPUTATION
     # ---------------------------------------------------------
-    X_train['Alcohol Consumption'] = X_train['Alcohol Consumption'].fillna('Unknown')
-    X_test['Alcohol Consumption'] = X_test['Alcohol Consumption'].fillna('Unknown')
-
     num_cols = X_train.select_dtypes(include=[np.number]).columns.tolist()
     cat_cols = X_train.select_dtypes(include=['object', 'str']).columns.tolist()
 
@@ -109,7 +107,7 @@ def main():
     print("[5/6] Encoding and scaling complete")
 
     cleaned_df = df.copy()
-    cleaned_df['Alcohol Consumption'] = cleaned_df['Alcohol Consumption'].fillna('Unknown')
+    cleaned_df = cleaned_df.replace('Unknown', np.nan)
     cleaned_df[num_cols] = num_imputer.transform(cleaned_df[num_cols])
     cleaned_df[cat_cols] = cat_imputer.transform(cleaned_df[cat_cols])
 
