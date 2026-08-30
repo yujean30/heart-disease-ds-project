@@ -142,7 +142,7 @@ highlight_targets = ["Accuracy", "Precision", "Recall", "F1-Score", "ROC-AUC"]
 
 
 lr_metrics_path = 'Logistic_Regression_Model/lr_baseline_metrics.csv'
-rf_metrics_path = 'random_forest/random_forest_model/metrics.csv'
+rf_metrics_path = 'random_forest/rf_metrics.csv'
 svm_metrics_path = "SVM_Model/svm_metrics.csv"
 knn_metrics_path = 'KNN_Model/knn_baseline_metrics.csv'
 
