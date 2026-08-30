@@ -1,2 +1,0 @@
-Model,Threshold,Accuracy,Precision,Recall,F1-Score,ROC-AUC
-RANDOM FOREST (SMOTE) (Threshold=0.05),0.05,0.2,0.2,1.0,0.3333333333333333,0.4823359375
