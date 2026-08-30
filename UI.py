@@ -142,7 +142,7 @@ highlight_targets = ["Accuracy", "Precision", "Recall", "F1-Score", "ROC-AUC"]
 
 
 lr_metrics_path = 'Logistic_Regression_Model/lr_baseline_metrics.csv'
-rf_metrics_path = 'random_forest/rf_metrics.csv'
+rf_metrics_path = 'random_forest/random_forest_model/metrics.csv'
 svm_metrics_path = "SVM_Model/svm_metrics.csv"
 knn_metrics_path = 'KNN_Model/knn_baseline_metrics.csv'
 
@@ -1223,7 +1223,7 @@ with tab1:
             st.error(
                 f"❌ {model_choice} model is not available."
             )
-        elif scaler is None:
+        elif model_choice != "SVM" and scaler is None:
             st.error(
                 f"❌ {model_choice} scaler is not available."
             )
@@ -1269,6 +1269,10 @@ with tab1:
                         columns=input_df.columns,
                         index=input_df.index
                     )
+                elif model_choice == "SVM":
+                    # SVM was trained directly on the preprocessed data.
+                    # Do NOT apply another scaler here.
+                    pass
                 else:
                     input_df[num_cols] = scaler.transform(input_df[num_cols])
 
