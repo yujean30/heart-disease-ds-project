@@ -235,8 +235,7 @@ def main():
         **baseline_metrics
     }])
 
-    print(baseline_table.to_string(index=False))
-
+    print(baseline_table.to_string(index=False, float_format="%.4f"))
 
     # -----------------------------------------------------
     # HYPERPARAMETER TUNING
@@ -337,7 +336,8 @@ def main():
     )
     threshold_results.to_csv(
         OUTPUT_DIR / "svm_threshold_comparison.csv",
-        index=False
+        index=False,
+        float_format="%.4f"
     )
 
 
@@ -383,7 +383,8 @@ def main():
     print(tuning_comparison.to_string(index=False))
     tuning_comparison.to_csv(
         OUTPUT_DIR / "svm_tuning_comparison.csv",
-        index=False
+        index=False,
+         float_format="%.4f"
     )
 
     # -----------------------------------------------------
