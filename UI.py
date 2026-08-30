@@ -1176,6 +1176,7 @@ with tab1:
                 st.rerun()
 
             alcohol = st.session_state["alcohol_choice"]
+            st.info(f"Active Alcohol Setting: *{alcohol}*")
 
             # Compact 3D Boba Cup (Sugar)
             st.write("**Sugar Consumption (Click Cup Tier):**")
@@ -1191,6 +1192,7 @@ with tab1:
                     st.rerun()
 
             sugar = st.session_state["sugar_choice"]
+            st.info(f"Active Sugar Setting: *{sugar}*")
 
     # =========================================================
     # CATEGORY 3: Clinical Measures, Medical History & Biomarkers
@@ -1218,7 +1220,7 @@ with tab1:
             homocysteine = st.number_input("Homocysteine Level (µmol/L)", min_value=0.0, max_value=30.0, value=10.0)
 
     st.markdown("---")
-    if st.button("🚀 START SPEEDTEST RISK ANALYSIS", type="primary", use_container_width=True):
+    if st.button("🚀 START PREDICTION", type="primary", use_container_width=True):
         if model is None:
             st.error(
                 f"❌ {model_choice} model is not available."
