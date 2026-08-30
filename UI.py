@@ -55,11 +55,6 @@ with header_container:
 # ---------------------------------------------------------
 # 3. Model & Scaler Artifact Loaders
 # ---------------------------------------------------------
-try:
-    from SVM_Model.SVM import SVMXGBHybrid
-except Exception:
-    pass
-
 @st.cache_resource
 def load_baseline_artifacts():
     model_path = 'Logistic_Regression_Model/best_lr_model.pkl'
@@ -1269,10 +1264,6 @@ with tab1:
                         columns=input_df.columns,
                         index=input_df.index
                     )
-                elif model_choice == "SVM":
-                    # SVM was trained directly on the preprocessed data.
-                    # Do NOT apply another scaler here.
-                    pass
                 else:
                     input_df[num_cols] = scaler.transform(input_df[num_cols])
 
