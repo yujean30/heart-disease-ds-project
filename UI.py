@@ -1119,14 +1119,10 @@ with tab1:
                     st.rerun()
 
         stress = st.session_state["stress_choice"]
+        st.info(f"Active Stress Setting: *{stress}*")
 
-        st.info(
-            f"Active Stress Setting: *{stress}*"
-        )
 
-        st.markdown("---")
-
-# =========================================================
+    # =========================================================
     # CATEGORY 2: Interactive Lifestyle & Intake
     # =========================================================
     with col2:
@@ -1158,6 +1154,7 @@ with tab1:
                     st.rerun()
 
             exercise = st.session_state["exercise_choice"]
+            st.info(f"Active Exercise Setting: *{exercise}*")
             
             # Compact 3D Wine Glass
             st.write("**Alcohol Consumption (Click Glass Level):**")
