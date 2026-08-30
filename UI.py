@@ -78,42 +78,51 @@ def load_rf_artifacts():
 
 @st.cache_resource
 def load_svm_artifacts():
+
     model_path = "SVM_Model/best_svm_model.joblib"
     scaler_path = "Preprocessing/shared_scaler.pkl"
     encoder_path = "Preprocessing/feature_encoders.pkl"
-    threshold_path = "SVM_Model/svm_decision_threshold.joblib"
+
     required_files = [
         model_path,
         scaler_path,
-        encoder_path,
-        threshold_path
+        encoder_path
     ]
+
     missing_files = [
         path for path in required_files
         if not os.path.exists(path)
     ]
+
     if missing_files:
         return (
             None,
             None,
             None,
-            None,
             missing_files
         )
+
     try:
+
         model = joblib.load(model_path)
         scaler = joblib.load(scaler_path)
         encoders = joblib.load(encoder_path)
-        threshold = joblib.load(threshold_path)
+
         return (
             model,
             scaler,
             encoders,
-            threshold,
             []
         )
+
     except Exception as e:
-        return (None,None,None,None,[f"Loading error: {e}"])
+
+        return (
+            None,
+            None,
+            None,
+            [f"Loading error: {e}"]
+        )
 
 
 @st.cache_resource
@@ -287,41 +296,9 @@ elif model_choice == "SVM":
     metrics_path = "SVM_Model/svm_metrics.csv"
     cm_path = "SVM_Model/svm_confusion_matrix.png"
     roc_path = "SVM_Model/svm_roc_curve.png"
-    decision_threshold = (
-        svm_threshold
-        if svm_threshold is not None
-        else 0.5
-    )
+    decision_threshold =0.5
 
-if model_choice == "SVM":
-    if svm_model is None:
-        st.error(
-            "❌ SVM model could not be loaded."
-        )
-        st.write("Required SVM files:")
-        st.code(
-            "\n".join(
-                [
-                    "SVM_Model/best_svm_model.joblib",
-                    "Preprocessing/shared_scaler.pkl",
-                    "Preprocessing/feature_encoders.pkl",
-                    "SVM_Model/svm_decision_threshold.joblib"
-                ]
-            )
-        )
-        if svm_missing_files:
-            st.warning("Missing/problematic files:")
 
-            for file in svm_missing_files:
-                st.write(f"- `{file}`")
-    else:
-        st.success(
-            "✅ SVM model loaded successfully."
-        )
-        st.caption(
-            f"SVM decision threshold: "
-            f"{decision_threshold:.4f}"
-        )
 
 # ---------------------------------------------------------
 # Helper 0: 3D Gender Interactive Avatar Cards
