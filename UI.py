@@ -1434,7 +1434,7 @@ with tab3:
 
         def generate_sample(label):
             samples = []
-            for _ in range(5):
+            for _ in range(10):
                 if label == "High Risk":
                     samples.append({
                         'Age': random.randint(55, 80),
@@ -1498,16 +1498,13 @@ with tab3:
             'Homocysteine Level': (0, 30)
         }
         for col, (low, high) in valid_ranges.items():
-                if col in df_low.columns:
-                    df_low[col] = df_low[col].clip(lower=low, upper=high)
-                if col in df_high.columns:
-                    df_high[col] = df_high[col].clip(lower=low, upper=high)        
+            if col in df_low.columns:
+                df_low[col] = df_low[col].clip(lower=low, upper=high)
+            if col in df_high.columns:
+                df_high[col] = df_high[col].clip(lower=low, upper=high)
         df_low['Age'] = df_low['Age'].astype(int)
         df_high['Age'] = df_high['Age'].astype(int)
-        
-        scaled_low = df_low.copy()
-        scaled_high = df_high.copy()
-        
+
         if model_choice == "KNN":
             knn_columns = scaler.feature_names_in_
             scaled_low = pd.DataFrame(
@@ -1521,18 +1518,27 @@ with tab3:
                 index=df_high.index
             )
         else:
+            scaled_low = df_low.copy()
+            scaled_high = df_high.copy()
             scaled_low[num_cols] = scaler.transform(df_low[num_cols])
             scaled_high[num_cols] = scaler.transform(df_high[num_cols])
-        
+
         df_low['Predicted Probability'] = model.predict_proba(scaled_low)[:, 1]
         df_low['Predicted Risk'] = np.where(df_low['Predicted Probability'] >= decision_threshold, "High Risk", "Low Risk")
-        
+
         df_high['Predicted Probability'] = model.predict_proba(scaled_high)[:, 1]
         df_high['Predicted Risk'] = np.where(df_high['Predicted Probability'] >= decision_threshold, "High Risk", "Low Risk")
-    
-        df_low = df_low[df_low['Predicted Risk'] == 'Low Risk']
-        df_high = df_high[df_high['Predicted Risk'] == 'High Risk']
-        
+
+        df_low = df_low[df_low['Predicted Risk'] == 'Low Risk'].head(10).copy()
+        df_high = df_high[df_high['Predicted Risk'] == 'High Risk'].head(10).copy()
+
+        if len(df_low) < 10:
+            extra_low = generate_sample("Low Risk")[feature_order].head(10 - len(df_low))
+            df_low = pd.concat([df_low, extra_low], ignore_index=True)
+        if len(df_high) < 10:
+            extra_high = generate_sample("High Risk")[feature_order].head(10 - len(df_high))
+            df_high = pd.concat([df_high, extra_high], ignore_index=True)
+
         mapping_dict = {
             'Gender': {0: 'Female', 1: 'Male'},
             'Exercise Habits': {0: 'Low', 1: 'Medium', 2: 'High'},
@@ -1551,14 +1557,15 @@ with tab3:
                 df_low[col] = df_low[col].map(mapping)
             if col in df_high.columns:
                 df_high[col] = df_high[col].map(mapping)
-        
+
         st.write("#### 🟢 Low‑Risk Samples (Predicted)")
-        st.dataframe(df_low, width="stretch")
-        
+        st.dataframe(df_low.head(10), width="stretch")
+
         st.write("#### 🔴 High‑Risk Samples (Predicted)")
-        st.dataframe(df_high, width="stretch")
-        
+        st.dataframe(df_high.head(10), width="stretch")
+
         st.success("✅ Synthetic samples generated and validated successfully.")
+
 
 
 # ---------------------------------------------------------
