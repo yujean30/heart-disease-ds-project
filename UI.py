@@ -606,17 +606,17 @@ def create_3d_cartoon_bottle(current_choice):
     fig.add_shape(type="path", path="M 0.30 2.25 Q 0.30 0.80 0.50 0.80 Q 0.70 0.80 0.70 2.25 Z",
                   line=dict(color="#0f172a", width=2.5), fillcolor="rgba(240, 249, 255, 0.4)")
 
-    # 3. Layer 1 - Bottom Tier (少量 / 1/3 杯)
+    # 3. Layer 1 - Bottom Tier
     c_bottom = "#b45309" if current_choice in ["Low", "Medium", "High"] else "rgba(226, 232, 240, 0.35)"
     fig.add_shape(type="path", path="M 0.37 1.25 Q 0.31 0.90 0.50 0.84 Q 0.69 0.90 0.63 1.25 Z",
                   line=dict(color="#0f172a", width=1.2), fillcolor=c_bottom)
 
-    # Layer 2 - Middle Tier (中量 / 2/3 杯)
+    # Layer 2 - Middle Tier
     c_middle = "#f59e0b" if current_choice in ["Medium", "High"] else "rgba(226, 232, 240, 0.35)"
     fig.add_shape(type="path", path="M 0.32 1.70 L 0.37 1.25 L 0.63 1.25 L 0.68 1.70 Z",
                   line=dict(color="#0f172a", width=1.2), fillcolor=c_middle)
 
-    # Layer 3 - Top Tier (多量 / 满杯)
+    # Layer 3 - Top Tier
     c_top = "#38bdf8" if current_choice == "High" else "rgba(226, 232, 240, 0.35)"
     fig.add_shape(type="path", path="M 0.30 2.15 L 0.32 1.70 L 0.68 1.70 L 0.70 2.15 Z",
                   line=dict(color="#0f172a", width=1.2), fillcolor=c_top)
@@ -663,17 +663,17 @@ def create_3d_cartoon_cup(current_choice):
     fig.add_shape(type="path", path="M 0.30 2.10 L 0.36 0.35 Q 0.50 0.28 0.64 0.35 L 0.70 2.10 Z",
                   line=dict(color="#0f172a", width=2.5), fillcolor="rgba(240, 249, 255, 0.4)")
 
-    # 3. Layer 1 - Bottom Tier (Low: 30% 微糖)
+    # 3. Layer 1 - Bottom Tier (Low: 30%)
     c1 = "#4ade80" if current_choice in ["Low", "Medium", "High"] else "rgba(226, 232, 240, 0.35)"
     fig.add_shape(type="path", path="M 0.36 0.38 L 0.38 0.90 L 0.62 0.90 L 0.64 0.38 Q 0.50 0.32 0.36 0.38 Z",
                   line=dict(color="#0f172a", width=1.2), fillcolor=c1)
 
-    # Layer 2 - Middle Tier (Medium: 70% 少糖)
+    # Layer 2 - Middle Tier (Medium: 70%)
     c2 = "#fbbf24" if current_choice in ["Medium", "High"] else "rgba(226, 232, 240, 0.35)"
     fig.add_shape(type="path", path="M 0.38 0.90 L 0.34 1.50 L 0.66 1.50 L 0.62 0.90 Z",
                   line=dict(color="#0f172a", width=1.2), fillcolor=c2)
 
-    # Layer 3 - Top Tier (High: 100% 全糖)
+    # Layer 3 - Top Tier (High: 100%)
     c3 = "#ea580c" if current_choice == "High" else "rgba(226, 232, 240, 0.35)"
     fig.add_shape(type="path", path="M 0.34 1.50 L 0.31 2.05 L 0.69 2.05 L 0.66 1.50 Z",
                   line=dict(color="#0f172a", width=1.2), fillcolor=c3)
@@ -1026,10 +1026,9 @@ def create_stress_gauge(current_selection="Medium"):
 # ---------------------------------------------------------
 # 6. Tabs
 # ---------------------------------------------------------
-tab1, tab2, tab3, tab_eda = st.tabs([
+tab1, tab2, tab_eda = st.tabs([
     "📋 Patient Assessment (Predictor)",
     "📊 Model Performance Metrics",
-    "🧪 Auto‑Generated Samples",
     "🔬 EDA"
 ])
 
@@ -1411,164 +1410,8 @@ with tab2:
         else:
             st.info("ROC curve not available.")
 
-
 # ---------------------------------------------------------
-# TAB 3: Auto‑Generated Samples
-# ---------------------------------------------------------
-with tab3:
-    st.write("### 🧪 Auto‑Generated Example Data")
-
-    if st.button("⚙️ Generate Sample Data", type="primary"):
-        feature_order = [
-            'Age','Gender','Blood Pressure','Cholesterol Level','Exercise Habits',
-            'Smoking','Family Heart Disease','Diabetes','BMI','High Blood Pressure',
-            'Low HDL Cholesterol','High LDL Cholesterol','Alcohol Consumption',
-            'Stress Level','Sleep Hours','Sugar Consumption','Triglyceride Level',
-            'Fasting Blood Sugar','CRP Level','Homocysteine Level'
-        ]
-
-        num_cols = ['Age','Blood Pressure','Cholesterol Level','BMI','Sleep Hours',
-                    'Triglyceride Level','Fasting Blood Sugar','CRP Level','Homocysteine Level']
-
-
-        def generate_sample(label):
-            samples = []
-            for _ in range(10):
-                if label == "High Risk":
-                    samples.append({
-                        'Age': random.randint(55, 80),
-                        'Gender': 1,
-                        'Blood Pressure': round(random.uniform(150, 220), 1),
-                        'Cholesterol Level': round(random.uniform(250, 400), 1),
-                        'Exercise Habits': 0,
-                        'Smoking': 1,
-                        'Family Heart Disease': 1,
-                        'Diabetes': 1,
-                        'BMI': round(random.uniform(28, 40), 1),
-                        'High Blood Pressure': 1,
-                        'Low HDL Cholesterol': 1,
-                        'High LDL Cholesterol': 1,
-                        'Alcohol Consumption': 3,
-                        'Stress Level': 2,
-                        'Sleep Hours': round(random.uniform(3, 6), 1),
-                        'Sugar Consumption': 2,
-                        'Triglyceride Level': round(random.uniform(200, 500), 1),
-                        'Fasting Blood Sugar': round(random.uniform(150, 300), 1),
-                        'CRP Level': round(random.uniform(10, 30), 1),
-                        'Homocysteine Level': round(random.uniform(15, 30), 1)
-                    })
-                else:
-                    samples.append({
-                        'Age': random.randint(25, 45),
-                        'Gender': 0,
-                        'Blood Pressure': round(random.uniform(90, 130), 1),
-                        'Cholesterol Level': round(random.uniform(150, 220), 1),
-                        'Exercise Habits': random.choice([1, 2]),
-                        'Smoking': 0,
-                        'Family Heart Disease': 0,
-                        'Diabetes': 0,
-                        'BMI': round(random.uniform(18, 26), 1),
-                        'High Blood Pressure': 0,
-                        'Low HDL Cholesterol': 0,
-                        'High LDL Cholesterol': 0,
-                        'Alcohol Consumption': random.choice([0, 1]),
-                        'Stress Level': 0,
-                        'Sleep Hours': round(random.uniform(7, 9), 1),
-                        'Sugar Consumption': 0,
-                        'Triglyceride Level': round(random.uniform(50, 150), 1),
-                        'Fasting Blood Sugar': round(random.uniform(70, 110), 1),
-                        'CRP Level': round(random.uniform(0, 5), 1),
-                        'Homocysteine Level': round(random.uniform(5, 12), 1)
-                    })
-            return pd.DataFrame(samples)
-
-        df_low = generate_sample("Low Risk")[feature_order]
-        df_high = generate_sample("High Risk")[feature_order]
-
-        valid_ranges = {
-            'Age': (18, 100),
-            'Blood Pressure': (80, 220),
-            'Cholesterol Level': (100, 400),
-            'BMI': (10, 50),
-            'Sleep Hours': (2, 14),
-            'Triglyceride Level': (50, 500),
-            'Fasting Blood Sugar': (70, 300),
-            'CRP Level': (0, 30),
-            'Homocysteine Level': (0, 30)
-        }
-        for col, (low, high) in valid_ranges.items():
-            if col in df_low.columns:
-                df_low[col] = df_low[col].clip(lower=low, upper=high)
-            if col in df_high.columns:
-                df_high[col] = df_high[col].clip(lower=low, upper=high)
-        df_low['Age'] = df_low['Age'].astype(int)
-        df_high['Age'] = df_high['Age'].astype(int)
-
-        if model_choice == "KNN":
-            knn_columns = scaler.feature_names_in_
-            scaled_low = pd.DataFrame(
-                scaler.transform(df_low.reindex(columns=knn_columns)),
-                columns=knn_columns,
-                index=df_low.index
-            )
-            scaled_high = pd.DataFrame(
-                scaler.transform(df_high.reindex(columns=knn_columns)),
-                columns=knn_columns,
-                index=df_high.index
-            )
-        else:
-            scaled_low = df_low.copy()
-            scaled_high = df_high.copy()
-            scaled_low[num_cols] = scaler.transform(df_low[num_cols])
-            scaled_high[num_cols] = scaler.transform(df_high[num_cols])
-
-        df_low['Predicted Probability'] = model.predict_proba(scaled_low)[:, 1]
-        df_low['Predicted Risk'] = np.where(df_low['Predicted Probability'] >= decision_threshold, "High Risk", "Low Risk")
-
-        df_high['Predicted Probability'] = model.predict_proba(scaled_high)[:, 1]
-        df_high['Predicted Risk'] = np.where(df_high['Predicted Probability'] >= decision_threshold, "High Risk", "Low Risk")
-
-        df_low = df_low[df_low['Predicted Risk'] == 'Low Risk'].head(10).copy()
-        df_high = df_high[df_high['Predicted Risk'] == 'High Risk'].head(10).copy()
-
-        if len(df_low) < 10:
-            extra_low = generate_sample("Low Risk")[feature_order].head(10 - len(df_low))
-            df_low = pd.concat([df_low, extra_low], ignore_index=True)
-        if len(df_high) < 10:
-            extra_high = generate_sample("High Risk")[feature_order].head(10 - len(df_high))
-            df_high = pd.concat([df_high, extra_high], ignore_index=True)
-
-        mapping_dict = {
-            'Gender': {0: 'Female', 1: 'Male'},
-            'Exercise Habits': {0: 'Low', 1: 'Medium', 2: 'High'},
-            'Alcohol Consumption': {0: 'None', 1: 'Low', 2: 'Medium', 3: 'High'},
-            'Stress Level': {0: 'Low', 1: 'Medium', 2: 'High'},
-            'Sugar Consumption': {0: 'Low', 1: 'Medium', 2: 'High'},
-            'Smoking': {0: 'No', 1: 'Yes'},
-            'Family Heart Disease': {0: 'No', 1: 'Yes'},
-            'Diabetes': {0: 'No', 1: 'Yes'},
-            'High Blood Pressure': {0: 'No', 1: 'Yes'},
-            'Low HDL Cholesterol': {0: 'No', 1: 'Yes'},
-            'High LDL Cholesterol': {0: 'No', 1: 'Yes'}
-        }
-        for col, mapping in mapping_dict.items():
-            if col in df_low.columns:
-                df_low[col] = df_low[col].map(mapping)
-            if col in df_high.columns:
-                df_high[col] = df_high[col].map(mapping)
-
-        st.write("#### 🟢 Low‑Risk Samples (Predicted)")
-        st.dataframe(df_low.head(10), width="stretch")
-
-        st.write("#### 🔴 High‑Risk Samples (Predicted)")
-        st.dataframe(df_high.head(10), width="stretch")
-
-        st.success("✅ Synthetic samples generated and validated successfully.")
-
-
-
-# ---------------------------------------------------------
-# TAB 4: EDA
+# TAB 3: EDA
 # ---------------------------------------------------------
 with tab_eda:
     st.subheader("Exploratory Data Analysis")
