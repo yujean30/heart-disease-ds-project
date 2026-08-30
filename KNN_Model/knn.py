@@ -31,10 +31,14 @@ from imblearn.over_sampling import SMOTENC
 # ============================================================
 
 RANDOM_STATE = 42
+
 SMOTE_SAMPLING_STRATEGY = 1.0
 SMOTE_K_NEIGHBORS = 5
 
-# Final KNN value selected from previous tuning
+# Baseline KNN value BEFORE fine-tuning
+BASELINE_K = 5
+
+# Final KNN value AFTER fine-tuning
 FINAL_K = 18
 
 # Categorical columns used by SMOTENC
@@ -57,49 +61,64 @@ CATEGORICAL_COLS = [
 # 2. PATH CONFIGURATION
 # ============================================================
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(
+    os.path.dirname(
+        os.path.abspath(__file__)
+    )
+)
 
 TRAIN_X_PATH = os.path.join(
-    BASE_DIR, "X_train_preprocessed.csv"
+    BASE_DIR,
+    "X_train_preprocessed.csv"
 )
 
 TEST_X_PATH = os.path.join(
-    BASE_DIR, "X_test_preprocessed.csv"
+    BASE_DIR,
+    "X_test_preprocessed.csv"
 )
 
 TRAIN_Y_PATH = os.path.join(
-    BASE_DIR, "y_train.csv"
+    BASE_DIR,
+    "y_train.csv"
 )
 
 TEST_Y_PATH = os.path.join(
-    BASE_DIR, "y_test.csv"
+    BASE_DIR,
+    "y_test.csv"
 )
 
-OUTPUT_DIR = os.path.dirname(os.path.abspath(__file__))
+OUTPUT_DIR = os.path.dirname(
+    os.path.abspath(__file__)
+)
 
 MODEL_PATH = os.path.join(
-    OUTPUT_DIR, "best_knn_model.pkl"
+    OUTPUT_DIR,
+    "best_knn_model.pkl"
 )
 
-# Also save a joblib version for UI compatibility
 MODEL_JOBLIB_PATH = os.path.join(
-    OUTPUT_DIR, "knn_model.joblib"
+    OUTPUT_DIR,
+    "knn_model.joblib"
 )
 
 SCALER_PATH = os.path.join(
-    OUTPUT_DIR, "scaler.pkl"
+    OUTPUT_DIR,
+    "scaler.pkl"
 )
 
 METRICS_PATH = os.path.join(
-    OUTPUT_DIR, "knn_baseline_metrics.csv"
+    OUTPUT_DIR,
+    "knn_baseline_metrics.csv"
 )
 
 CM_PATH = os.path.join(
-    OUTPUT_DIR, "knn_confusion_matrix.png"
+    OUTPUT_DIR,
+    "knn_confusion_matrix.png"
 )
 
 ROC_PATH = os.path.join(
-    OUTPUT_DIR, "knn_roc_curve.png"
+    OUTPUT_DIR,
+    "knn_roc_curve.png"
 )
 
 
@@ -113,21 +132,46 @@ print("=" * 60)
 
 print("\nLoading preprocessed datasets...")
 
-X_train = pd.read_csv(TRAIN_X_PATH)
-X_test = pd.read_csv(TEST_X_PATH)
+X_train = pd.read_csv(
+    TRAIN_X_PATH
+)
 
-y_train = pd.read_csv(TRAIN_Y_PATH)
-y_test = pd.read_csv(TEST_Y_PATH)
+X_test = pd.read_csv(
+    TEST_X_PATH
+)
+
+y_train = pd.read_csv(
+    TRAIN_Y_PATH
+)
+
+y_test = pd.read_csv(
+    TEST_Y_PATH
+)
 
 # Convert target DataFrames to 1-dimensional arrays
 y_train = y_train.iloc[:, 0]
 y_test = y_test.iloc[:, 0]
 
 print("\nOriginal data:")
-print("X_train shape:", X_train.shape)
-print("X_test shape :", X_test.shape)
-print("y_train shape:", y_train.shape)
-print("y_test shape :", y_test.shape)
+print(
+    "X_train shape:",
+    X_train.shape
+)
+
+print(
+    "X_test shape :",
+    X_test.shape
+)
+
+print(
+    "y_train shape:",
+    y_train.shape
+)
+
+print(
+    "y_test shape :",
+    y_test.shape
+)
 
 
 # ============================================================
@@ -138,21 +182,33 @@ print("\nApplying SMOTENC...")
 
 # Check that all categorical columns exist
 missing_categorical = [
-    col for col in CATEGORICAL_COLS
+    col
+    for col in CATEGORICAL_COLS
     if col not in X_train.columns
 ]
 
 if missing_categorical:
-    print("\nWARNING: The following categorical columns were")
-    print("not found in X_train:")
-    print(missing_categorical)
 
-    # Use only columns that actually exist
+    print(
+        "\nWARNING: The following categorical columns were"
+    )
+
+    print(
+        "not found in X_train:"
+    )
+
+    print(
+        missing_categorical
+    )
+
     categorical_columns_used = [
-        col for col in CATEGORICAL_COLS
+        col
+        for col in CATEGORICAL_COLS
         if col in X_train.columns
     ]
+
 else:
+
     categorical_columns_used = CATEGORICAL_COLS
 
 
@@ -169,11 +225,26 @@ X_train_smote, y_train_smote = smote.fit_resample(
 )
 
 print("\nAfter SMOTENC:")
-print("X_train shape:", X_train_smote.shape)
-print("y_train shape:", y_train_smote.shape)
 
-print("\nClass distribution after SMOTENC:")
-print(pd.Series(y_train_smote).value_counts())
+print(
+    "X_train shape:",
+    X_train_smote.shape
+)
+
+print(
+    "y_train shape:",
+    y_train_smote.shape
+)
+
+print(
+    "\nClass distribution after SMOTENC:"
+)
+
+print(
+    pd.Series(
+        y_train_smote
+    ).value_counts()
+)
 
 
 # ============================================================
@@ -192,11 +263,96 @@ X_test_scaled = scaler.transform(
     X_test
 )
 
-print("StandardScaler applied successfully.")
+print(
+    "StandardScaler applied successfully."
+)
 
 
 # ============================================================
-# 6. KNN MODEL TUNING
+# 6. BASELINE KNN - BEFORE FINE-TUNING
+# ============================================================
+
+print("\n" + "=" * 60)
+print("BASELINE KNN - BEFORE FINE-TUNING")
+print("=" * 60)
+
+baseline_knn = KNeighborsClassifier(
+    n_neighbors=BASELINE_K,
+    metric="euclidean"
+)
+
+baseline_knn.fit(
+    X_train_scaled,
+    y_train_smote
+)
+
+baseline_pred = baseline_knn.predict(
+    X_test_scaled
+)
+
+baseline_prob = baseline_knn.predict_proba(
+    X_test_scaled
+)[:, 1]
+
+
+# ------------------------------------------------------------
+# Baseline Metrics
+# ------------------------------------------------------------
+
+baseline_accuracy = accuracy_score(
+    y_test,
+    baseline_pred
+)
+
+baseline_precision = precision_score(
+    y_test,
+    baseline_pred,
+    zero_division=0
+)
+
+baseline_recall = recall_score(
+    y_test,
+    baseline_pred,
+    zero_division=0
+)
+
+baseline_f1 = f1_score(
+    y_test,
+    baseline_pred,
+    zero_division=0
+)
+
+baseline_roc_auc = roc_auc_score(
+    y_test,
+    baseline_prob
+)
+
+
+print("\nBefore Fine-Tuning Performance:")
+
+print(
+    f"Accuracy : {baseline_accuracy:.4f}"
+)
+
+print(
+    f"Precision: {baseline_precision:.4f}"
+)
+
+print(
+    f"Recall   : {baseline_recall:.4f}"
+)
+
+print(
+    f"F1-score : {baseline_f1:.4f}"
+)
+
+print(
+    f"ROC-AUC  : {baseline_roc_auc:.4f}"
+)
+
+
+# ============================================================
+# 7. KNN PARAMETER TUNING
 # ============================================================
 
 print("\n" + "=" * 60)
@@ -237,15 +393,19 @@ for k in range(1, 21):
     )
 
 
-k_results_df = pd.DataFrame(k_results)
+k_results_df = pd.DataFrame(
+    k_results
+)
 
 
 # ============================================================
-# 7. TRAIN FINAL KNN MODEL
+# 8. TRAIN FINAL KNN MODEL - AFTER FINE-TUNING
 # ============================================================
 
 print("\n" + "=" * 60)
-print(f"FINAL KNN MODEL: K = {FINAL_K}")
+print(
+    f"FINAL KNN MODEL - AFTER FINE-TUNING: K = {FINAL_K}"
+)
 print("=" * 60)
 
 knn = KNeighborsClassifier(
@@ -268,7 +428,7 @@ y_prob = knn.predict_proba(
 
 
 # ============================================================
-# 8. MODEL EVALUATION
+# 9. FINAL MODEL EVALUATION
 # ============================================================
 
 accuracy = accuracy_score(
@@ -299,14 +459,32 @@ roc_auc = roc_auc_score(
     y_prob
 )
 
-print("\nFinal KNN Performance:")
-print(f"Accuracy : {accuracy:.4f}")
-print(f"Precision: {precision:.4f}")
-print(f"Recall   : {recall:.4f}")
-print(f"F1-score : {f1:.4f}")
-print(f"ROC-AUC  : {roc_auc:.4f}")
+
+print("\nAfter Fine-Tuning Performance:")
+
+print(
+    f"Accuracy : {accuracy:.4f}"
+)
+
+print(
+    f"Precision: {precision:.4f}"
+)
+
+print(
+    f"Recall   : {recall:.4f}"
+)
+
+print(
+    f"F1-score : {f1:.4f}"
+)
+
+print(
+    f"ROC-AUC  : {roc_auc:.4f}"
+)
+
 
 print("\nClassification Report:")
+
 print(
     classification_report(
         y_test,
@@ -317,30 +495,155 @@ print(
 
 
 # ============================================================
-# 9. SAVE METRICS
+# 10. CALCULATE CHANGE
 # ============================================================
 
-metrics_df = pd.DataFrame({
-    "Model": ["KNN"],
-    "Best K": [FINAL_K],
-    "Accuracy": [accuracy],
-    "Precision": [precision],
-    "Recall": [recall],
-    "F1 Score": [f1],
-    "ROC AUC": [roc_auc],
+accuracy_change = (
+    accuracy - baseline_accuracy
+)
+
+precision_change = (
+    precision - baseline_precision
+)
+
+recall_change = (
+    recall - baseline_recall
+)
+
+f1_change = (
+    f1 - baseline_f1
+)
+
+roc_auc_change = (
+    roc_auc - baseline_roc_auc
+)
+
+
+print("\n" + "=" * 60)
+print("KNN PERFORMANCE CHANGE")
+print("=" * 60)
+
+print(
+    f"Accuracy Change : {accuracy_change:+.4f}"
+)
+
+print(
+    f"Precision Change: {precision_change:+.4f}"
+)
+
+print(
+    f"Recall Change   : {recall_change:+.4f}"
+)
+
+print(
+    f"F1 Change       : {f1_change:+.4f}"
+)
+
+print(
+    f"ROC-AUC Change  : {roc_auc_change:+.4f}"
+)
+
+
+# ============================================================
+# 11. SAVE BEFORE & AFTER METRICS
+# ============================================================
+
+comparison_df = pd.DataFrame({
+
+    "Model": [
+        "KNN",
+        "KNN",
+        "KNN"
+    ],
+
+    "Evaluation Phase": [
+        "Before Fine-Tuning",
+        "After Fine-Tuning",
+        "Change"
+    ],
+
+    "Accuracy": [
+        baseline_accuracy,
+        accuracy,
+        accuracy_change
+    ],
+
+    "Precision": [
+        baseline_precision,
+        precision,
+        precision_change
+    ],
+
+    "Recall": [
+        baseline_recall,
+        recall,
+        recall_change
+    ],
+
+    "F1-Score": [
+        baseline_f1,
+        f1,
+        f1_change
+    ],
+
+    "ROC-AUC": [
+        baseline_roc_auc,
+        roc_auc,
+        roc_auc_change
+    ]
 })
+
+
+comparison_path = os.path.join(
+    OUTPUT_DIR,
+    "knn_before_after_metrics.csv"
+)
+
+comparison_df.to_csv(
+    comparison_path,
+    index=False
+)
+
+
+# Keep the original metrics file for UI compatibility
+metrics_df = pd.DataFrame({
+
+    "Model": ["KNN"],
+
+    "Best K": [FINAL_K],
+
+    "Accuracy": [accuracy],
+
+    "Precision": [precision],
+
+    "Recall": [recall],
+
+    "F1 Score": [f1],
+
+    "ROC AUC": [roc_auc],
+
+})
+
 
 metrics_df.to_csv(
     METRICS_PATH,
     index=False
 )
 
+
 print("\nMetrics saved to:")
-print(METRICS_PATH)
+
+print(
+    comparison_path
+)
+
+print(
+    METRICS_PATH
+)
 
 
 # ============================================================
-# 10. CONFUSION MATRIX
+# 12. CONFUSION MATRIX
 # ============================================================
 
 cm = confusion_matrix(
@@ -348,7 +651,9 @@ cm = confusion_matrix(
     y_pred
 )
 
-plt.figure(figsize=(6, 5))
+plt.figure(
+    figsize=(6, 5)
+)
 
 sns.heatmap(
     cm,
@@ -362,8 +667,13 @@ plt.title(
     f"KNN Confusion Matrix (K={FINAL_K})"
 )
 
-plt.xlabel("Predicted Label")
-plt.ylabel("Actual Label")
+plt.xlabel(
+    "Predicted Label"
+)
+
+plt.ylabel(
+    "Actual Label"
+)
 
 plt.tight_layout()
 
@@ -375,11 +685,13 @@ plt.savefig(
 
 plt.close()
 
-print("Confusion matrix saved.")
+print(
+    "Confusion matrix saved."
+)
 
 
 # ============================================================
-# 11. ROC CURVE
+# 13. ROC CURVE
 # ============================================================
 
 fpr, tpr, thresholds = roc_curve(
@@ -387,7 +699,9 @@ fpr, tpr, thresholds = roc_curve(
     y_prob
 )
 
-plt.figure(figsize=(7, 5))
+plt.figure(
+    figsize=(7, 5)
+)
 
 plt.plot(
     fpr,
@@ -402,8 +716,13 @@ plt.plot(
     label="Random Classifier"
 )
 
-plt.xlabel("False Positive Rate")
-plt.ylabel("True Positive Rate")
+plt.xlabel(
+    "False Positive Rate"
+)
+
+plt.ylabel(
+    "True Positive Rate"
+)
 
 plt.title(
     f"KNN ROC Curve (K={FINAL_K})"
@@ -421,11 +740,13 @@ plt.savefig(
 
 plt.close()
 
-print("ROC curve saved.")
+print(
+    "ROC curve saved."
+)
 
 
 # ============================================================
-# 12. SAVE FINAL MODEL AND SCALER
+# 14. SAVE FINAL MODEL AND SCALER
 # ============================================================
 
 joblib.dump(
@@ -433,7 +754,6 @@ joblib.dump(
     MODEL_PATH
 )
 
-# Save an additional joblib copy for UI compatibility
 joblib.dump(
     knn,
     MODEL_JOBLIB_PATH
@@ -444,33 +764,115 @@ joblib.dump(
     SCALER_PATH
 )
 
+
 print("\nModel files saved:")
-print(" -", MODEL_PATH)
-print(" -", MODEL_JOBLIB_PATH)
-print(" -", SCALER_PATH)
+
+print(
+    " -",
+    MODEL_PATH
+)
+
+print(
+    " -",
+    MODEL_JOBLIB_PATH
+)
+
+print(
+    " -",
+    SCALER_PATH
+)
 
 
 # ============================================================
-# 13. COMPLETION SUMMARY
+# 15. COMPLETION SUMMARY
 # ============================================================
 
 print("\n" + "=" * 60)
 print("KNN MODEL COMPLETED SUCCESSFULLY")
 print("=" * 60)
 
-print(f"Final K: {FINAL_K}")
-print(f"Accuracy: {accuracy * 100:.2f}%")
-print(f"Recall: {recall * 100:.2f}%")
-print(f"F1 Score: {f1:.4f}")
-print(f"ROC-AUC: {roc_auc:.4f}")
+print(
+    f"Baseline K: {BASELINE_K}"
+)
+
+print(
+    f"Final K: {FINAL_K}"
+)
+
+print("\nBefore Fine-Tuning:")
+
+print(
+    f"Accuracy: {baseline_accuracy * 100:.2f}%"
+)
+
+print(
+    f"Precision: {baseline_precision * 100:.2f}%"
+)
+
+print(
+    f"Recall: {baseline_recall * 100:.2f}%"
+)
+
+print(
+    f"F1 Score: {baseline_f1:.4f}"
+)
+
+print(
+    f"ROC-AUC: {baseline_roc_auc:.4f}"
+)
+
+
+print("\nAfter Fine-Tuning:")
+
+print(
+    f"Accuracy: {accuracy * 100:.2f}%"
+)
+
+print(
+    f"Precision: {precision * 100:.2f}%"
+)
+
+print(
+    f"Recall: {recall * 100:.2f}%"
+)
+
+print(
+    f"F1 Score: {f1:.4f}"
+)
+
+print(
+    f"ROC-AUC: {roc_auc:.4f}"
+)
+
 
 print("\nGenerated files:")
 
-print("1. best_knn_model.pkl")
-print("2. knn_model.joblib")
-print("3. scaler.pkl")
-print("4. knn_baseline_metrics.csv")
-print("5. knn_confusion_matrix.png")
-print("6. knn_roc_curve.png")
+print(
+    "1. best_knn_model.pkl"
+)
+
+print(
+    "2. knn_model.joblib"
+)
+
+print(
+    "3. scaler.pkl"
+)
+
+print(
+    "4. knn_baseline_metrics.csv"
+)
+
+print(
+    "5. knn_before_after_metrics.csv"
+)
+
+print(
+    "6. knn_confusion_matrix.png"
+)
+
+print(
+    "7. knn_roc_curve.png"
+)
 
 print("\nAll KNN outputs are ready for GitHub/UI integration.")
