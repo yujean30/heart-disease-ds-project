@@ -3,6 +3,9 @@ import random
 import time
 from pathlib import Path
 from importlib.resources import path
+import time
+import winsound
+import threading
 
 import streamlit as st
 import pandas as pd
@@ -1218,15 +1221,29 @@ with tab1:
             homocysteine = st.number_input("Homocysteine Level (µmol/L)", min_value=0.0, max_value=30.0, value=10.0)
 
     st.markdown("---")
+
+    def start_heartbeat_loop(beats=5, bpm=70):
+        beat_interval = (60 / bpm) - 0.3
+        for _ in range(beats):
+            winsound.Beep(65, 120)   # Lub
+            time.sleep(0.08)
+            winsound.Beep(95, 90)    # Dub
+            time.sleep(max(0.1, beat_interval))
+
+    def play_heartbeat_async(beats=5, bpm=75):
+        """Fires heartbeat audio in a non-blocking background thread."""
+        threading.Thread(
+            target=start_heartbeat_loop, 
+            args=(beats, bpm), 
+            daemon=True
+        ).start()
+
+
     if st.button("🚀 START PREDICTION", type="primary", use_container_width=True):
         if model is None:
-            st.error(
-                f"❌ {model_choice} model is not available."
-            )
+            st.error(f"❌ {model_choice} model is not available.")
         elif model_choice != "SVM" and scaler is None:
-            st.error(
-                f"❌ {model_choice} scaler is not available."
-            )
+            st.error(f"❌ {model_choice} scaler is not available.")
         else:
             input_dict = {
                 "Age": age,
@@ -1246,21 +1263,17 @@ with tab1:
                 'Sleep Hours': sleep,
                 'Sugar Consumption': {"Low": 0, "Medium": 1, "High": 2}[sugar],
                 'Triglyceride Level': triglycerides,
-                'Fasting Blood Sugar': fbs,                    'CRP Level': crp,
+                'Fasting Blood Sugar': fbs,
+                'CRP Level': crp,
                 'Homocysteine Level': homocysteine
             }
             input_df = pd.DataFrame([input_dict])
             num_cols = [
-                "Age",
-                "Blood Pressure",
-                "Cholesterol Level",
-                "BMI",
-                "Sleep Hours",
-                "Triglyceride Level",
-                "Fasting Blood Sugar",
-                "CRP Level",
-                "Homocysteine Level"
+                "Age", "Blood Pressure", "Cholesterol Level", "BMI", 
+                "Sleep Hours", "Triglyceride Level", "Fasting Blood Sugar", 
+                "CRP Level", "Homocysteine Level"
             ]
+            
             try:
                 if model_choice == "KNN":
                     input_df = input_df.reindex(columns=scaler.feature_names_in_)
@@ -1270,8 +1283,6 @@ with tab1:
                         index=input_df.index
                     )
                 elif model_choice == "SVM":
-                    # SVM was trained directly on the preprocessed data.
-                    # Do NOT apply another scaler here.
                     pass
                 else:
                     input_df[num_cols] = scaler.transform(input_df[num_cols])
@@ -1283,16 +1294,25 @@ with tab1:
 
                 res_col1, res_col2 = st.columns([1.3, 1.7])
                 with res_col1:
-                    speedtest_placeholder = (st.empty())
+                    speedtest_placeholder = st.empty()
                 with res_col2:
                     status_box = st.empty()
                     
+                # -------------------------------------------------------------
+                # TRIGGER AUDIO AND ANIMATION SIMULTANEOUSLY
+                # -------------------------------------------------------------
+                play_heartbeat_async(beats=5, bpm=75)
+
                 # Smooth Slow Speedtest Needle Movement
                 slow_steps = 35
-                for i in range(1,slow_steps + 1):
-                    interp_val = (target_pct/ slow_steps* i)
+                for i in range(1, slow_steps + 1):
+                    interp_val = (target_pct / slow_steps * i)
                     speedtest_placeholder.plotly_chart(
-                        render_speedtest_gauge(interp_val,decision_threshold,status_text=("⚡ READING SENSORS "f"({interp_val:.1f}%)...")),
+                        render_speedtest_gauge(
+                            interp_val, 
+                            decision_threshold, 
+                            status_text=f"⚡ READING SENSORS ({interp_val:.1f}%)..."
+                        ),
                         use_container_width=True,
                         key=f"gauge_rise_{i}"
                     )
@@ -1302,52 +1322,43 @@ with tab1:
                 for j_idx, offset in enumerate(jitter_offsets):
                     j_val = min(100.0, max(0.0, target_pct + offset))
                     speedtest_placeholder.plotly_chart(
-                        render_speedtest_gauge(j_val, decision_threshold, status_text="📡 STABILIZING DATA MATRIX..."),
+                        render_speedtest_gauge(
+                            j_val, 
+                            decision_threshold, 
+                            status_text="📡 STABILIZING DATA MATRIX..."
+                        ),
                         use_container_width=True,
                         key=f"gauge_jitter_{j_idx}"
                     )
                     time.sleep(0.12)
 
                 speedtest_placeholder.plotly_chart(
-                    render_speedtest_gauge(target_pct, decision_threshold, status_text="✅ TEST COMPLETE - LOCKED"),
+                    render_speedtest_gauge(
+                        target_pct, 
+                        decision_threshold, 
+                        status_text="✅ TEST COMPLETE - LOCKED"
+                    ),
                     use_container_width=True,
                     key="gauge_final_locked"
                 )
 
-                with status_box.container(
-                    border=True
-                ):
+                with status_box.container(border=True):
                     st.metric(
                         label="Calculated Disease Probability",
                         value=f"{target_pct:.1f}%"
                     )
                     st.metric(
                         label="Model Decision Threshold",
-                        value=(
-                            f"{decision_threshold * 100:.1f}%"
-                        )
+                        value=f"{decision_threshold * 100:.1f}%"
                     )
-                    if (
-                        final_probability
-                        >= decision_threshold
-                    ):
-
-                        st.error(
-                            "⚠️ **HIGH RISK**: Patient "
-                            "shows symptoms/risk patterns "
-                            "for Heart Disease."
-                        )
+                    if final_probability >= decision_threshold:
+                        st.error("⚠️ **HIGH RISK**: Patient shows symptoms/risk patterns for Heart Disease.")
                     else:
+                        st.success("✅ **LOW RISK**: Patient is unlikely to have Heart Disease.")
 
-                        st.success(
-                            "✅ **LOW RISK**: Patient is "
-                            "unlikely to have Heart Disease."
-                        )
             except Exception as e:
                 st.error("❌ Prediction failed.")
-
                 st.exception(e)
-
 
 # =========================================================
 # TAB 2: PERFORMANCE METRICS
