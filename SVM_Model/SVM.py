@@ -1,8 +1,6 @@
 # =========================================================
 # SVM HEART DISEASE PREDICTION
-# Fine-tuned SVM with SMOTENC and Threshold Optimization
 # =========================================================
-
 from pathlib import Path
 import warnings
 import joblib
@@ -10,27 +8,26 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-
 from imblearn.pipeline import Pipeline
 from imblearn.over_sampling import SMOTENC
-
 from sklearn.metrics import (
-    accuracy_score, classification_report, confusion_matrix,
-    f1_score, precision_score, recall_score, roc_auc_score, roc_curve
+    accuracy_score,
+    classification_report,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+    roc_curve
 )
-from sklearn.model_selection import (
-    RandomizedSearchCV, StratifiedKFold, cross_val_predict
-)
+from sklearn.model_selection import (RandomizedSearchCV,StratifiedKFold,cross_val_predict)
 from sklearn.svm import SVC
-
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
-
 
 # =========================================================
 # CONFIGURATION
 # =========================================================
-
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = Path(__file__).resolve().parent
 RANDOM_STATE = 42
@@ -39,7 +36,6 @@ RANDOM_STATE = 42
 # =========================================================
 # LOAD DATA
 # =========================================================
-
 def load_data():
     files = {
         "X_train": ROOT / "Preprocessing" / "X_train_preprocessed.csv",
@@ -61,16 +57,13 @@ def load_data():
 
     return X_train, X_test, y_train, y_test
 
-
 # =========================================================
 # DATA CHECK
 # =========================================================
-
 def check_data(X_train, X_test, y_train, y_test):
     print("\n" + "=" * 60)
     print("DATA CHECK")
     print("=" * 60)
-
     print(f"Training shape         : {X_train.shape}")
     print(f"Testing shape          : {X_test.shape}")
     print(f"Training class balance : {pd.Series(y_train).value_counts().to_dict()}")
@@ -85,11 +78,9 @@ def check_data(X_train, X_test, y_train, y_test):
     if X_train.isnull().sum().sum() > 0 or X_test.isnull().sum().sum() > 0:
         raise ValueError("Missing values remain after preprocessing.")
 
-
 # =========================================================
 # SMOTENC
 # =========================================================
-
 def create_smote(X_train):
     categorical_columns = [
         "Gender",
@@ -104,67 +95,58 @@ def create_smote(X_train):
         "Stress Level",
         "Sugar Consumption"
     ]
-
     categorical_indices = [
         X_train.columns.get_loc(col)
         for col in categorical_columns
         if col in X_train.columns
     ]
-
     return SMOTENC(
         categorical_features=categorical_indices,
         random_state=RANDOM_STATE,
         k_neighbors=5
     )
 
-
 # =========================================================
 # METRICS
 # =========================================================
-
 def calculate_metrics(y_true, probabilities, threshold):
     predictions = (probabilities >= threshold).astype(int)
 
     metrics = {
         "Accuracy": accuracy_score(y_true, predictions),
+        "F1-Score": f1_score(y_true, predictions, zero_division=0),
         "Precision": precision_score(y_true, predictions, zero_division=0),
         "Recall": recall_score(y_true, predictions, zero_division=0),
-        "F1-Score": f1_score(y_true, predictions, zero_division=0),
         "ROC-AUC": roc_auc_score(y_true, probabilities)
     }
 
     return metrics, predictions
 
-
 # =========================================================
 # THRESHOLD ANALYSIS
 # =========================================================
-
 def analyze_thresholds(y_true, probabilities):
     thresholds = np.linspace(0.20, 0.80, 61)
     results = []
 
     for threshold in thresholds:
         predictions = (probabilities >= threshold).astype(int)
-
         results.append({
             "threshold": threshold,
             "accuracy": accuracy_score(y_true, predictions),
+            "f1": f1_score(y_true, predictions, zero_division=0),
             "precision": precision_score(y_true, predictions, zero_division=0),
             "recall": recall_score(y_true, predictions, zero_division=0),
-            "f1": f1_score(y_true, predictions, zero_division=0),
             "positive_rate": predictions.mean()
         })
 
     return pd.DataFrame(results)
-
 
 def choose_threshold(results_df):
     reasonable = results_df[
         (results_df["positive_rate"] >= 0.10) &
         (results_df["positive_rate"] <= 0.50)
     ]
-
     if reasonable.empty:
         best = results_df.sort_values(
             ["f1", "precision", "recall"],
@@ -175,42 +157,34 @@ def choose_threshold(results_df):
             ["f1", "precision", "recall"],
             ascending=False
         ).iloc[0]
-
     print("\n" + "=" * 60)
     print("THRESHOLD OPTIMIZATION")
     print("=" * 60)
     print(f"Chosen threshold : {best['threshold']:.4f}")
     print(f"OOF Accuracy     : {best['accuracy']:.4f}")
+    print(f"OOF F1-Score     : {best['f1']:.4f}")
     print(f"OOF Precision    : {best['precision']:.4f}")
     print(f"OOF Recall       : {best['recall']:.4f}")
-    print(f"OOF F1-Score     : {best['f1']:.4f}")
     print(f"OOF Positive Rate: {best['positive_rate']:.4f}")
 
     return float(best["threshold"])
 
-
 # =========================================================
 # MAIN
 # =========================================================
-
 def main():
-
     # -----------------------------------------------------
     # LOAD DATA
     # -----------------------------------------------------
-
     X_train, X_test, y_train, y_test = load_data()
     check_data(X_train, X_test, y_train, y_test)
-
 
     # -----------------------------------------------------
     # BASELINE MODEL
     # -----------------------------------------------------
-
     print("\n" + "=" * 60)
     print("BASELINE RESULT")
     print("=" * 60)
-
     baseline_model = Pipeline([
         ("smote", create_smote(X_train)),
         ("svm", SVC(
@@ -219,35 +193,26 @@ def main():
             random_state=RANDOM_STATE
         ))
     ])
-
     baseline_model.fit(X_train, y_train)
-
     baseline_probas = baseline_model.predict_proba(X_test)[:, 1]
-
-    baseline_metrics, _ = calculate_metrics(
-        y_test,
-        baseline_probas,
-        0.50
-    )
-
+    baseline_metrics, _ = calculate_metrics(y_test,baseline_probas,0.50)
     baseline_table = pd.DataFrame([{
         "Threshold": 0.50,
-        **baseline_metrics
+        "Accuracy": baseline_metrics["Accuracy"],
+        "F1-Score": baseline_metrics["F1-Score"],
+        "Precision": baseline_metrics["Precision"],
+        "Recall": baseline_metrics["Recall"],
+        "ROC-AUC": baseline_metrics["ROC-AUC"]
     }])
-
-    print(baseline_table.to_string(index=False))
-
-
+    print(baseline_table.to_string(index=False,float_format=lambda x: f"{x:.4f}"))
     # -----------------------------------------------------
     # HYPERPARAMETER TUNING
-    # -----------------------------------------------------
-
+    # ----------------------------------------------------
     cv = StratifiedKFold(
         n_splits=5,
         shuffle=True,
         random_state=RANDOM_STATE
     )
-
     pipeline = Pipeline([
         ("smote", create_smote(X_train)),
         ("svm", SVC(
@@ -256,20 +221,17 @@ def main():
             random_state=RANDOM_STATE
         ))
     ])
-
     param_distributions = {
         "svm__kernel": ["rbf", "linear"],
         "svm__C": [0.1, 1, 10],
         "svm__gamma": ["scale", 0.001, 0.01]
     }
-
     print("\n" + "=" * 60)
     print("HYPERPARAMETER TUNING")
     print("=" * 60)
     print("Method : RandomizedSearchCV")
     print("CV     : 5-fold Stratified CV")
     print("Scoring: F1-Score")
-
     search = RandomizedSearchCV(
         estimator=pipeline,
         param_distributions=param_distributions,
@@ -281,44 +243,34 @@ def main():
         random_state=RANDOM_STATE,
         return_train_score=True
     )
-
     search.fit(X_train, y_train)
     best_model = search.best_estimator_
-
     print(f"Best Parameters: {search.best_params_}")
     print(f"Best CV F1     : {search.best_score_:.4f}")
-
 
     # -----------------------------------------------------
     # OVERFITTING CHECK
     # -----------------------------------------------------
-
     train_pred = best_model.predict(X_train)
-
     train_accuracy = accuracy_score(y_train, train_pred)
+    train_f1 = f1_score(y_train, train_pred, zero_division=0)
     train_precision = precision_score(y_train, train_pred, zero_division=0)
     train_recall = recall_score(y_train, train_pred, zero_division=0)
-    train_f1 = f1_score(y_train, train_pred, zero_division=0)
-
     f1_gap = train_f1 - search.best_score_
-
     print("\n" + "=" * 60)
     print("OVERFITTING CHECK")
     print("=" * 60)
     print(f"Training Accuracy : {train_accuracy:.4f}")
+    print(f"Training F1       : {train_f1:.4f}")
     print(f"Training Precision: {train_precision:.4f}")
     print(f"Training Recall   : {train_recall:.4f}")
-    print(f"Training F1       : {train_f1:.4f}")
     print(f"CV F1             : {search.best_score_:.4f}")
     print(f"F1 Gap            : {f1_gap:.4f}")
-
 
     # -----------------------------------------------------
     # OOF THRESHOLD OPTIMIZATION
     # -----------------------------------------------------
-
     print("\nGenerating out-of-fold probabilities...")
-
     oof_probas = cross_val_predict(
         best_model,
         X_train,
@@ -328,25 +280,13 @@ def main():
         n_jobs=-1
     )[:, 1]
 
-    threshold_results = analyze_thresholds(
-        y_train,
-        oof_probas
-    )
-    decision_threshold = choose_threshold(
-        threshold_results
-    )
-    threshold_results.to_csv(
-        OUTPUT_DIR / "svm_threshold_comparison.csv",
-        index=False
-    )
-
-
+    threshold_results = analyze_thresholds(y_train,oof_probas)
+    decision_threshold = choose_threshold(threshold_results)
+    threshold_results.to_csv(OUTPUT_DIR / "svm_threshold_comparison.csv",index=False,float_format="%.4f")
     # -----------------------------------------------------
     # AFTER TUNING
     # -----------------------------------------------------
-
     test_probas = best_model.predict_proba(X_test)[:, 1]
-
     tuned_metrics, tuned_pred = calculate_metrics(
         y_test,
         test_probas,
@@ -358,33 +298,56 @@ def main():
     print("=" * 60)
     tuned_table = pd.DataFrame([{
         "Threshold": decision_threshold,
-        **tuned_metrics
+        "Accuracy": tuned_metrics["Accuracy"],
+        "F1-Score": tuned_metrics["F1-Score"],
+        "Precision": tuned_metrics["Precision"],
+        "Recall": tuned_metrics["Recall"],
+        "ROC-AUC": tuned_metrics["ROC-AUC"]
     }])
-    print(tuned_table.to_string(index=False))
+    print(tuned_table.to_string(index=False,float_format=lambda x: f"{x:.4f}"))
 
     # -----------------------------------------------------
     # BEFORE VS AFTER
     # -----------------------------------------------------
+    change_metrics = {
+        "Accuracy": tuned_metrics["Accuracy"] - baseline_metrics["Accuracy"],
+        "F1-Score": tuned_metrics["F1-Score"] - baseline_metrics["F1-Score"],
+        "Precision": tuned_metrics["Precision"] - baseline_metrics["Precision"],
+        "Recall": tuned_metrics["Recall"] - baseline_metrics["Recall"],
+        "ROC-AUC": tuned_metrics["ROC-AUC"] - baseline_metrics["ROC-AUC"]
+    }
+
     tuning_comparison = pd.DataFrame([
         {
             "Stage": "Before Tuning",
-            "Threshold": 0.50,
-            **baseline_metrics
+            "Accuracy": baseline_metrics["Accuracy"],
+            "F1-Score": baseline_metrics["F1-Score"],
+            "Precision": baseline_metrics["Precision"],
+            "Recall": baseline_metrics["Recall"],
+            "ROC-AUC": baseline_metrics["ROC-AUC"]
         },
         {
             "Stage": "After Tuning",
-            "Threshold": decision_threshold,
-            **tuned_metrics
+            "Accuracy": tuned_metrics["Accuracy"],
+            "F1-Score": tuned_metrics["F1-Score"],
+            "Precision": tuned_metrics["Precision"],
+            "Recall": tuned_metrics["Recall"],
+            "ROC-AUC": tuned_metrics["ROC-AUC"]
+        },
+        {
+            "Stage": "Change",
+            "Accuracy": change_metrics["Accuracy"],
+            "F1-Score": change_metrics["F1-Score"],
+            "Precision": change_metrics["Precision"],
+            "Recall": change_metrics["Recall"],
+            "ROC-AUC": change_metrics["ROC-AUC"]
         }
     ])
     print("\n" + "=" * 80)
     print("BEFORE VS AFTER TUNING")
     print("=" * 80)
-    print(tuning_comparison.to_string(index=False))
-    tuning_comparison.to_csv(
-        OUTPUT_DIR / "svm_tuning_comparison.csv",
-        index=False
-    )
+    print(tuning_comparison.to_string(index=False,float_format=lambda x: f"{x:.4f}"))
+    tuning_comparison.to_csv(OUTPUT_DIR / "svm_tuning_comparison.csv",index=False,float_format="%.4f")
 
     # -----------------------------------------------------
     # FINAL METRICS
@@ -392,9 +355,9 @@ def main():
     final_metrics = {
         "Model": "SVM",
         "Accuracy": tuned_metrics["Accuracy"],
+        "F1-Score": tuned_metrics["F1-Score"],
         "Precision": tuned_metrics["Precision"],
         "Recall": tuned_metrics["Recall"],
-        "F1-Score": tuned_metrics["F1-Score"],
         "ROC-AUC": tuned_metrics["ROC-AUC"],
         "Default Threshold": 0.50,
         "Decision Threshold": decision_threshold,
@@ -403,15 +366,13 @@ def main():
         "F1 Gap": f1_gap,
         "Best Params": str(search.best_params_)
     }
-    pd.DataFrame([final_metrics]).to_csv(
-        OUTPUT_DIR / "svm_metrics.csv",
-        index=False
-    )
+
+    pd.DataFrame([final_metrics]).to_csv(OUTPUT_DIR / "svm_metrics.csv",index=False)
 
     # -----------------------------------------------------
     # SAVE MODEL
     # -----------------------------------------------------
-    joblib.dump(best_model,OUTPUT_DIR / "best_svm_model.joblib")
+    joblib.dump(best_model, OUTPUT_DIR / "best_svm_model.joblib")
     joblib.dump(decision_threshold,OUTPUT_DIR / "svm_decision_threshold.joblib")
 
     # -----------------------------------------------------
@@ -425,15 +386,19 @@ def main():
             y_test,
             tuned_pred,
             target_names=["No Disease", "Heart Disease"],
-            zero_division=0
+            zero_division=0,
+            digits=4
         )
     )
 
     # -----------------------------------------------------
     # CONFUSION MATRIX
     # -----------------------------------------------------
+
     cm = confusion_matrix(y_test, tuned_pred)
+
     plt.figure(figsize=(6, 5))
+
     sns.heatmap(
         cm,
         annot=True,
@@ -443,22 +408,44 @@ def main():
         xticklabels=["No Heart Disease", "Heart Disease"],
         yticklabels=["No Heart Disease", "Heart Disease"]
     )
+
     plt.title("SVM Confusion Matrix")
     plt.xlabel("Predicted Label")
     plt.ylabel("True Label")
     plt.tight_layout()
-    plt.savefig(OUTPUT_DIR / "svm_confusion_matrix.png",dpi=300)
+
+    plt.savefig(
+        OUTPUT_DIR / "svm_confusion_matrix.png",
+        dpi=300
+    )
+
     plt.close()
+
 
     # -----------------------------------------------------
     # ROC CURVE
     # -----------------------------------------------------
-    fpr, tpr, _ = roc_curve(y_test, test_probas)
+
+    fpr, tpr, _ = roc_curve(
+        y_test,
+        test_probas
+    )
 
     plt.figure(figsize=(6, 5))
 
-    plt.plot(fpr,tpr,lw=2,label=f"SVM (AUC = {tuned_metrics['ROC-AUC']:.3f})")
-    plt.plot([0, 1], [0, 1],lw=1,linestyle="--")
+    plt.plot(
+        fpr,
+        tpr,
+        lw=2,
+        label=f"SVM (AUC = {tuned_metrics['ROC-AUC']:.3f})"
+    )
+
+    plt.plot(
+        [0, 1],
+        [0, 1],
+        lw=1,
+        linestyle="--"
+    )
     plt.xlabel("False Positive Rate")
     plt.ylabel("True Positive Rate (Recall)")
     plt.title("SVM ROC Curve")
@@ -468,19 +455,15 @@ def main():
     plt.savefig(OUTPUT_DIR / "svm_roc_curve.png",dpi=300)
     plt.close()
 
-
     # -----------------------------------------------------
     # THRESHOLD ANALYSIS PLOT
     # -----------------------------------------------------
     plt.figure(figsize=(8, 5))
-
     plt.plot(threshold_results["threshold"],threshold_results["accuracy"],label="Accuracy")
+    plt.plot(threshold_results["threshold"],threshold_results["f1"],label="F1-Score")
     plt.plot(threshold_results["threshold"],threshold_results["precision"],label="Precision")
     plt.plot(threshold_results["threshold"],threshold_results["recall"],label="Recall")
-    plt.plot(threshold_results["threshold"],threshold_results["f1"],label="F1-Score")
-    
     plt.axvline(decision_threshold,linestyle="--",label=f"Chosen Threshold ({decision_threshold:.2f})")
-
     plt.ylim(0, 1)
     plt.xlabel("Probability Threshold")
     plt.ylabel("Score")
@@ -488,12 +471,10 @@ def main():
     plt.legend()
     plt.grid(alpha=0.25)
     plt.tight_layout()
-    plt.savefig( OUTPUT_DIR / "svm_threshold_metrics.png", dpi=300)
+    plt.savefig(OUTPUT_DIR / "svm_threshold_metrics.png",dpi=300)
     plt.close()
-
-    # -----------------------------------------------------
+    
     # COMPLETED
-    # -----------------------------------------------------
     print("\n" + "=" * 60)
     print("SVM TRAINING COMPLETED")
     print("=" * 60)
@@ -508,9 +489,6 @@ def main():
     print("  - svm_confusion_matrix.png")
     print("  - svm_roc_curve.png")
 
-# =========================================================
 # RUN
-# =========================================================
 if __name__ == "__main__":
     main()
-
