@@ -1616,7 +1616,16 @@ with tab_eda:
         if missing.empty:
             st.success("No missing values detected.")
         else:
-            st.dataframe(missing, width="stretch")
+            st.dataframe(
+                missing, 
+                width="stretch",
+                column_config={
+                    "Missing values": st.column_config.TextColumn(
+                        "Missing values",
+                        help="Number of missing entries"
+                    )
+                }
+            )
         st.dataframe(df_eda.head(10), width="stretch")
 
     st.markdown("#### 1. Outcome balance")
