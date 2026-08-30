@@ -1,0 +1,2 @@
+Model,Accuracy,Precision,Recall,F1-Score,ROC-AUC,Default Threshold,Decision Threshold,Best CV F1,Training F1,F1 Gap,Best Params
+Random Forest,0.512,0.19556025369978858,0.4625,0.274888558692422,0.4821140625,0.5,0.48000000000000004,0.2850331874411379,0.5651910248635537,0.28015783742241573,"{'rf__n_estimators': 500, 'rf__min_samples_split': 5, 'rf__min_samples_leaf': 2, 'rf__max_depth': 10, 'rf__class_weight': 'balanced'}"

@@ -1,356 +1,546 @@
-import os, sys
-import json
+# =========================================================
+# RANDOM FOREST HEART DISEASE PREDICTION
+# Fine-tuned Random Forest with SMOTENC and Threshold Optimization
+# =========================================================
+
+from pathlib import Path
+import warnings
 import joblib
-import pandas as pd
 import numpy as np
+import pandas as pd
+
 import matplotlib.pyplot as plt
 import seaborn as sns
-import warnings
+
+from imblearn.pipeline import Pipeline
+from imblearn.over_sampling import SMOTENC
+
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+    roc_curve
+)
+
+from sklearn.model_selection import (
+    RandomizedSearchCV,
+    StratifiedKFold,
+    cross_val_predict
+)
 
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import StratifiedKFold, RandomizedSearchCV, cross_val_predict
-from sklearn.metrics import (
-    accuracy_score, precision_score, recall_score,
-    f1_score, roc_auc_score,
-    confusion_matrix, roc_curve, classification_report
-)
-from imblearn.pipeline import Pipeline as ImbPipeline
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))  # add parent folder to path
-from SMOTE import create_smote   # import shared helper
 
-warnings.filterwarnings("ignore", category=UserWarning)
+
 warnings.filterwarnings("ignore", category=FutureWarning)
-
-# ===========================================================
-# 0. Shared Setup -- loaded ONCE, used by both models below
-# ===========================================================
-BASE_DIR = os.path.dirname(__file__)  # path to Random_Forest folder
-os.makedirs(os.path.join(BASE_DIR, 'random_forest_model'), exist_ok=True)           # SMOTE model
-os.makedirs(os.path.join(BASE_DIR, 'random_forest_model_no_smote'), exist_ok=True)  # No-SMOTE model
-
-# Raw, imbalanced training set -- used for honest CV (both models' search
-# + threshold tuning) and as the actual training data for the No-SMOTE model.
-X_train_raw = pd.read_csv('X_train_preprocessed.csv')
-y_train_raw = pd.read_csv('y_train.csv').values.ravel()
-
-# Real, untouched test set -- used for final evaluation of BOTH models, exactly once each.
-X_test = pd.read_csv('X_test_preprocessed.csv')
-y_test = pd.read_csv('y_test.csv').values.ravel()
-
-print(f"Raw imbalanced training set: {X_train_raw.shape[0]} rows, "
-      f"{pd.Series(y_train_raw).value_counts().to_dict()}")
-print(f"Test set (real, untouched):  {X_test.shape[0]} rows, "
-      f"{pd.Series(y_test).value_counts().to_dict()}")
-
-cv_strategy = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-thresholds = np.arange(0.05, 0.96, 0.01)
-
-# --------------------------------------------------------------
-# Threshold selection is weighted toward precision instead of pure F1.
-#
-# F-beta with beta < 1 weights precision more heavily than recall --
-# beta=0.5 means "precision matters ~2x more than recall". Lower beta
-# further (e.g. 0.3) to push even harder toward precision at recall's
-# expense. beta=1.0 would be equivalent to the original F1-based selection.
-#
-# min_predicted_positive guards against picking an unstable threshold:
-# at very high thresholds, precision can look artificially high just
-# because only a handful of predictions were made (small-sample noise,
-# not a real pattern). Thresholds with fewer than this many predicted
-# positives are excluded before picking the best one.
-# --------------------------------------------------------------
-FBETA_BETA = 0.5
-MIN_PREDICTED_POSITIVE = 20
+warnings.filterwarnings("ignore", category=UserWarning)
 
 
-def select_threshold_by_fbeta(y_true, oof_proba, thresholds, beta=FBETA_BETA,
-                               min_predicted_positive=MIN_PREDICTED_POSITIVE):
+# =========================================================
+# CONFIGURATION
+# =========================================================
+
+ROOT = Path(__file__).resolve().parents[1]
+OUTPUT_DIR = Path(__file__).resolve().parent
+RANDOM_STATE = 42
+
+
+# =========================================================
+# LOAD DATA
+# =========================================================
+
+def load_data():
+
+    files = {
+        "X_train": ROOT / "Preprocessing" / "X_train_preprocessed.csv",
+        "X_test": ROOT / "Preprocessing" / "X_test_preprocessed.csv",
+        "y_train": ROOT / "Preprocessing" / "y_train.csv",
+        "y_test": ROOT / "Preprocessing" / "y_test.csv"
+    }
+
+    for name, path in files.items():
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Missing file: {path}. "
+                "Please run preprocess.py first."
+            )
+
+    X_train = pd.read_csv(files["X_train"])
+    X_test = pd.read_csv(files["X_test"])
+
+    y_train = (
+        pd.read_csv(files["y_train"])
+        .squeeze("columns")
+        .to_numpy()
+    )
+
+    y_test = (
+        pd.read_csv(files["y_test"])
+        .squeeze("columns")
+        .to_numpy()
+    )
+
+    return X_train, X_test, y_train, y_test
+
+
+# =========================================================
+# DATA CHECK
+# =========================================================
+
+def check_data(X_train, X_test, y_train, y_test):
+
+    print("\nDATA CHECK")
+    print(f"Training shape: {X_train.shape}")
+    print(f"Testing shape : {X_test.shape}")
+    print("Training class balance:", pd.Series(y_train).value_counts().to_dict())
+    print("Testing class balance :", pd.Series(y_test).value_counts().to_dict())
+    print("Train/Test columns match:", list(X_train.columns) == list(X_test.columns))
+    print("Training missing values:", X_train.isnull().sum().sum())
+    print("Testing missing values :", X_test.isnull().sum().sum())
+
+    if list(X_train.columns) != list(X_test.columns):
+        raise ValueError("Training and testing columns do not match.")
+
+    if X_train.isnull().sum().sum() > 0 or X_test.isnull().sum().sum() > 0:
+        raise ValueError("Missing values remain after preprocessing.")
+
+
+# =========================================================
+# SMOTENC
+# =========================================================
+
+def create_smote(X_train):
+
+    categorical_columns = [
+        "Gender",
+        "Exercise Habits",
+        "Smoking",
+        "Family Heart Disease",
+        "Diabetes",
+        "High Blood Pressure",
+        "Low HDL Cholesterol",
+        "High LDL Cholesterol",
+        "Alcohol Consumption",
+        "Stress Level",
+        "Sugar Consumption"
+    ]
+
+    categorical_indices = [
+        X_train.columns.get_loc(col)
+        for col in categorical_columns
+        if col in X_train.columns
+    ]
+
+    return SMOTENC(
+        categorical_features=categorical_indices,
+        random_state=RANDOM_STATE,
+        k_neighbors=5
+    )
+
+
+# =========================================================
+# THRESHOLD ANALYSIS
+# =========================================================
+
+def analyze_thresholds(y_true, probabilities):
+
+    thresholds = np.linspace(0.20, 0.80, 61)
     results = []
-    for t in thresholds:
-        pred = (oof_proba >= t).astype(int)
-        prec = precision_score(y_true, pred, zero_division=0)
-        rec = recall_score(y_true, pred, zero_division=0)
-        f1 = f1_score(y_true, pred, zero_division=0)
-        if prec + rec > 0:
-            f_beta = (1 + beta**2) * prec * rec / ((beta**2 * prec) + rec)
-        else:
-            f_beta = 0.0
+
+    for threshold in thresholds:
+        predictions = (probabilities >= threshold).astype(int)
+
         results.append({
-            "Threshold": round(t, 2),
-            "Precision": prec,
-            "Recall": rec,
-            "F1-Score": f1,
-            f"F-beta (beta={beta})": f_beta,
-            "N_Predicted_Positive": int(pred.sum()),
-        })
-    df = pd.DataFrame(results)
-
-    stable = df[df["N_Predicted_Positive"] >= min_predicted_positive]
-    if stable.empty:
-        print(f"WARNING: no threshold reached {min_predicted_positive} predicted "
-              f"positives -- falling back to full threshold range.")
-        stable = df
-
-    best_row = stable.loc[stable[f"F-beta (beta={beta})"].idxmax()]
-    best_threshold = float(best_row["Threshold"])
-    return best_threshold, best_row, df
-
-
-# a place to collect both models' final numbers for the side-by-side comparison table printed at the very end
-comparison_rows = []
-
-def evaluate_and_report(model, model_label, output_dir, threshold,
-                         cm_cmap, extra_title=""):
-    """Shared evaluation + plotting + printed report for one fitted model.
-    Runs the SAME evaluation logic for both the SMOTE and No-SMOTE models,
-    so their numbers are directly comparable."""
-    y_proba = model.predict_proba(X_test)[:, 1]
-    y_pred = (y_proba >= threshold).astype(int)
-
-    acc = accuracy_score(y_test, y_pred)
-    prec = precision_score(y_test, y_pred, zero_division=0)
-    rec = recall_score(y_test, y_pred, zero_division=0)
-    f1 = f1_score(y_test, y_pred, zero_division=0)
-    roc_auc = roc_auc_score(y_test, y_proba)
-
-    cm = confusion_matrix(y_test, y_pred)
-    tn, fp, fn, tp = cm.ravel()
-    report_dict = classification_report(y_test, y_pred, digits=4, output_dict=True)
-    report_text = classification_report(y_test, y_pred, digits=4)
-
-    print("\n" + "=" * 50)
-    print(f"{model_label} EVALUATION METRICS")
-    print("=" * 50)
-    print(f"Accuracy Score : {acc * 100:.2f}%")
-    print(f"Precision Score: {prec:.4f}")
-    print(f"Recall Score   : {rec:.4f}")
-    print(f"F1-Score       : {f1:.4f}")
-    print(f"ROC-AUC Score  : {roc_auc:.4f}")
-    print(f"Best Threshold : {threshold}")
-    print("\nCONFUSION MATRIX:")
-    print(f"True Negatives (TN): {tn}")
-    print(f"False Positives (FP): {fp}")
-    print(f"False Negatives (FN): {fn}")
-    print(f"True Positives (TP): {tp}")
-    print("\nDETAILED CLASSIFICATION REPORT:")
-    print(report_text)
-
-    # JSON metrics
-    metrics_path = os.path.join(output_dir, 'metrics.json')
-    with open(metrics_path, 'w') as f:
-        json.dump({
-            "model": model_label,
             "threshold": threshold,
-            "accuracy": acc, "precision": prec, "recall": rec,
-            "f1_score": f1, "roc_auc": roc_auc,
-            "confusion_matrix": {"TN": int(tn), "FP": int(fp),
-                                  "FN": int(fn), "TP": int(tp)},
-            "classification_report": report_dict
-        }, f, indent=2)
-    print(f"Metrics saved to {metrics_path}")
+            "accuracy": accuracy_score(y_true, predictions),
+            "precision": precision_score(y_true, predictions, zero_division=0),
+            "recall": recall_score(y_true, predictions, zero_division=0),
+            "f1": f1_score(y_true, predictions, zero_division=0),
+            "positive_rate": predictions.mean()
+        })
 
-    # CSV metrics (same shape UI.py already expects)
-    pd.DataFrame([{
-        'Model': f'{model_label} (Threshold={threshold})',
-        'Threshold': threshold, 'Accuracy': acc, 'Precision': prec,
-        'Recall': rec, 'F1-Score': f1, 'ROC-AUC': roc_auc
-    }]).to_csv(os.path.join(output_dir, 'metrics.csv'), index=False)
-
-    # Confusion matrix plot
-    plt.figure(figsize=(6, 5))
-    sns.heatmap(cm, annot=True, fmt='d', cmap=cm_cmap, cbar=False,
-                xticklabels=['No Heart Disease', 'Heart Disease'],
-                yticklabels=['No Heart Disease', 'Heart Disease'])
-    plt.title(f'{model_label} - Confusion Matrix{extra_title}')
-    plt.xlabel('Predicted Label')
-    plt.ylabel('True Label')
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, 'confusion_matrix.png'), dpi=300)
-    plt.close()
-
-    # ROC curve plot
-    fpr, tpr, _ = roc_curve(y_test, y_proba)
-    plt.figure(figsize=(6, 5))
-    plt.plot(fpr, tpr, lw=2, label=f'ROC Curve (AUC = {roc_auc:.3f})')
-    plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate (Recall)')
-    plt.title(f'{model_label} - ROC Curve')
-    plt.legend(loc="lower right")
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, 'roc_curve.png'), dpi=300)
-    plt.close()
-
-    comparison_rows.append({
-        'Model': model_label, 'Threshold': threshold, 'Accuracy': acc,
-        'Precision': prec, 'Recall': rec, 'F1-Score': f1,
-        'ROC-AUC': roc_auc
-    })
+    return pd.DataFrame(results)
 
 
-def save_feature_importance(model, columns, output_dir, title, color):
-    importances = model.feature_importances_
+# =========================================================
+# CHOOSE BEST THRESHOLD
+# =========================================================
+
+def choose_threshold(results_df):
+
+    reasonable = results_df[
+        (results_df["positive_rate"] >= 0.10)
+        & (results_df["positive_rate"] <= 0.50)
+    ]
+
+    if reasonable.empty:
+        best = results_df.sort_values(
+            ["f1", "precision", "recall"], ascending=False
+        ).iloc[0]
+    else:
+        best = reasonable.sort_values(
+            ["f1", "precision", "recall"], ascending=False
+        ).iloc[0]
+
+    print("\nOOF THRESHOLD ANALYSIS")
+    print(f"Chosen threshold : {best['threshold']:.4f}")
+    print(f"OOF Accuracy     : {best['accuracy']:.4f}")
+    print(f"OOF Precision    : {best['precision']:.4f}")
+    print(f"OOF Recall       : {best['recall']:.4f}")
+    print(f"OOF F1           : {best['f1']:.4f}")
+    print(f"OOF Positive Rate: {best['positive_rate']:.4f}")
+
+    return float(best["threshold"])
+
+
+# =========================================================
+# CALCULATE METRICS
+# =========================================================
+
+def calculate_metrics(y_true, probabilities, threshold):
+
+    predictions = (probabilities >= threshold).astype(int)
+
+    metrics = {
+        "Accuracy": accuracy_score(y_true, predictions),
+        "Precision": precision_score(y_true, predictions, zero_division=0),
+        "Recall": recall_score(y_true, predictions, zero_division=0),
+        "F1-Score": f1_score(y_true, predictions, zero_division=0),
+        "ROC-AUC": roc_auc_score(y_true, probabilities)
+    }
+
+    return metrics, predictions
+
+
+# =========================================================
+# FEATURE IMPORTANCE
+# =========================================================
+
+def save_feature_importance(model, columns):
+    """Random Forest-specific: SVM has no equivalent, this is new versus
+    the SVM script this was based on."""
+    importances = model.named_steps["rf"].feature_importances_
     feat_imp = pd.Series(importances, index=columns).sort_values(ascending=False)
-    feat_imp.to_csv(os.path.join(output_dir, 'feature_importance.csv'), header=['Importance'])
+    feat_imp.to_csv(OUTPUT_DIR / "rf_feature_importance.csv", header=["Importance"])
+
     plt.figure(figsize=(8, 6))
-    sns.barplot(x=feat_imp.values, y=feat_imp.index, color=color)
-    plt.title(title)
+    sns.barplot(x=feat_imp.values, y=feat_imp.index, color="seagreen")
+    plt.title("Random Forest Feature Importance")
     plt.xlabel("Importance")
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, 'feature_importance.png'), dpi=300)
+    plt.savefig(OUTPUT_DIR / "rf_feature_importance.png", dpi=300)
     plt.close()
 
 
-# ===========================================================
-# PART A -- SMOTE MODEL (new standard)
-# ===========================================================
-print("\n" + "=" * 60)
-print("= PART A: TRAINING SMOTE MODEL")
-print("=" * 60)
+# =========================================================
+# MAIN
+# =========================================================
 
-search_pipeline = ImbPipeline([
-    ('smote', create_smote()),   # dynamic SMOTENC
-    ('classifier', RandomForestClassifier(random_state=42, n_jobs=-1))
-])
+def main():
 
-smote_param_dist = {
-    "classifier__n_estimators": [100, 200, 300, 500],
-    "classifier__max_depth": [None, 10, 20, 30, 50],
-    "classifier__min_samples_split": [2, 5, 10],
-    "classifier__min_samples_leaf": [1, 2, 4],
-    "classifier__class_weight": ["balanced", None],
-}
+    # -----------------------------------------------------
+    # LOAD DATA
+    # -----------------------------------------------------
 
-smote_search = RandomizedSearchCV(
-    estimator=search_pipeline, param_distributions=smote_param_dist,
-    n_iter=30, cv=cv_strategy, scoring="f1", n_jobs=-1,
-    random_state=42, verbose=1
-)
-smote_search.fit(X_train_raw, y_train_raw)
-print(f"\n[SMOTE model] Best hyperparameters (via honest CV): {smote_search.best_params_}")
+    X_train, X_test, y_train, y_test = load_data()
+    check_data(X_train, X_test, y_train, y_test)
 
-# Threshold tuning -- precision-weighted (F-beta, beta=0.5) instead of F1
-smote_oof_proba = cross_val_predict(
-    smote_search.best_estimator_, X_train_raw, y_train_raw,
-    cv=cv_strategy, method='predict_proba', n_jobs=-1
-)[:, 1]
+    # -----------------------------------------------------
+    # SMOTENC CONFIGURATION
+    # -----------------------------------------------------
 
-smote_best_threshold, smote_best_row, df_smote_thresholds = select_threshold_by_fbeta(
-    y_train_raw, smote_oof_proba, thresholds
-)
-df_smote_thresholds.to_csv(
-    os.path.join(BASE_DIR, 'random_forest_model', 'threshold_comparison.csv'),
-    index=False
-)
-print(f"[SMOTE model] Best threshold (precision-weighted, via honest CV): {smote_best_threshold}")
-print(f"  -> CV Precision={smote_best_row['Precision']:.3f}, "
-      f"Recall={smote_best_row['Recall']:.3f}, "
-      f"N_predicted_positive={int(smote_best_row['N_Predicted_Positive'])}")
+    print("\nSMOTENC CONFIGURATION")
+    print("SMOTENC is applied INSIDE CV.")
+    print("Test data will NOT be oversampled.")
 
-# Final model: pipeline’s best_estimator_
-smote_final_model = smote_search.best_estimator_
-smote_final_model.fit(X_train_raw, y_train_raw)
-joblib.dump(
-    smote_final_model,
-    os.path.join(BASE_DIR, 'random_forest_model', 'random_forest_tuned.joblib')
-)
+    # -----------------------------------------------------
+    # RANDOM FOREST PIPELINE
+    # -----------------------------------------------------
 
-joblib.dump(
-    smote_best_threshold,
-    os.path.join(BASE_DIR, 'random_forest_model', 'decision_threshold.joblib')
-)
+    pipeline = Pipeline([
+        ("smote", create_smote(X_train)),
+        # n_jobs=1 here, not -1 -- RandomizedSearchCV below already
+        # parallelizes across candidates + CV folds with n_jobs=-1. Nesting
+        # a second n_jobs=-1 inside the inner RandomForestClassifier causes
+        # CPU oversubscription (both layers competing for the same cores)
+        # and triggers repeated joblib worker-process warnings that this
+        # file's warnings.filterwarnings() call can't suppress (those
+        # warnings come from subprocesses, which don't inherit the main
+        # process's filter settings).
+        ("rf", RandomForestClassifier(random_state=RANDOM_STATE, n_jobs=1))
+    ])
 
-evaluate_and_report(
-    smote_final_model, "RANDOM FOREST (SMOTE)", os.path.join(BASE_DIR, 'random_forest_model'),
-    smote_best_threshold, cm_cmap='Greens'
-)
-save_feature_importance(
-    smote_final_model.named_steps['classifier'], X_train_raw.columns, os.path.join(BASE_DIR, 'random_forest_model'),
-    "Random Forest (SMOTE) Feature Importance", color='seagreen'
-)
+    print("\nRANDOM FOREST MODEL")
+    print("Main algorithm: Random Forest")
+    print("Combination method: None")
 
-# ===========================================================
-# PART B -- NO-SMOTE MODEL
-# ===========================================================
-# Trained directly on the raw imbalanced data; class_weight is part of the
-# search space instead of SMOTE. No pipeline needed -- there's no
-# resampling step, so plain CV is already honest here.
-print("\n" + "=" * 60)
-print("= PART B: TRAINING NO-SMOTE MODEL")
-print("=" * 60)
+    # =====================================================
+    # BEFORE TUNING
+    # =====================================================
 
-no_smote_param_dist = {
-    "n_estimators": [100, 200, 300, 500],
-    "max_depth": [None, 10, 20, 30, 50],
-    "min_samples_split": [2, 5, 10],
-    "min_samples_leaf": [1, 2, 4],
-    "class_weight": ["balanced", "balanced_subsample", None],
-}
-rf_plain = RandomForestClassifier(random_state=42, n_jobs=-1)
+    print("\nBEFORE TUNING: RANDOM FOREST MODEL RESULTS")
 
-no_smote_search = RandomizedSearchCV(
-    estimator=rf_plain, param_distributions=no_smote_param_dist,
-    n_iter=30, cv=cv_strategy, scoring="f1", n_jobs=-1,
-    random_state=42, verbose=1
-)
-no_smote_search.fit(X_train_raw, y_train_raw)
-print(f"\n[No-SMOTE model] Best hyperparameters: {no_smote_search.best_params_}")
+    baseline_model = Pipeline([
+        ("smote", create_smote(X_train)),
+        ("rf", RandomForestClassifier(random_state=RANDOM_STATE, n_jobs=1))
+    ])
 
-print("[No-SMOTE model] Generating out-of-fold probabilities for threshold tuning...")
-no_smote_oof_proba = cross_val_predict(
-    no_smote_search.best_estimator_, X_train_raw, y_train_raw,
-    cv=cv_strategy, method='predict_proba', n_jobs=-1
-)[:, 1]
+    baseline_model.fit(X_train, y_train)
+    baseline_probas = baseline_model.predict_proba(X_test)[:, 1]
+    baseline_metrics, _ = calculate_metrics(y_test, baseline_probas, 0.50)
 
-no_smote_best_threshold, no_smote_best_row, df_no_smote_thresholds = select_threshold_by_fbeta(
-    y_train_raw, no_smote_oof_proba, thresholds
-)
-df_no_smote_thresholds.to_csv(
-    os.path.join(BASE_DIR, 'random_forest_model_no_smote', 'threshold_comparison.csv'),
-    index=False
-)
-print(f"[No-SMOTE model] Best threshold (precision-weighted, via honest CV): {no_smote_best_threshold}")
-print(f"  -> CV Precision={no_smote_best_row['Precision']:.3f}, "
-      f"Recall={no_smote_best_row['Recall']:.3f}, "
-      f"N_predicted_positive={int(no_smote_best_row['N_Predicted_Positive'])}")
+    print(pd.DataFrame([baseline_metrics]).to_string(index=False))
 
-no_smote_final_model = no_smote_search.best_estimator_
-no_smote_final_model.fit(X_train_raw, y_train_raw)
-joblib.dump(no_smote_final_model, os.path.join(BASE_DIR, 'random_forest_model_no_smote', 'random_forest_no_smote.joblib'))
+    # =====================================================
+    # CROSS-VALIDATION
+    # =====================================================
 
-joblib.dump(
-    no_smote_best_threshold,
-    os.path.join(BASE_DIR, 'random_forest_model_no_smote', 'decision_threshold.joblib')
-)
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
 
-evaluate_and_report(
-    no_smote_final_model, "RANDOM FOREST (NO SMOTE)", os.path.join(BASE_DIR, 'random_forest_model_no_smote'),
-    no_smote_best_threshold, cm_cmap='Blues'
-)
-save_feature_importance(
-    no_smote_final_model, X_train_raw.columns, os.path.join(BASE_DIR, 'random_forest_model_no_smote'),
-    "Random Forest (No SMOTE) Feature Importance", color='steelblue'
-)
+    # =====================================================
+    # RANDOM FOREST PARAMETER SEARCH
+    # =====================================================
 
-# ===========================================================
-# PART C -- Shared scaler + Final Side-by-Side Comparison
-# ===========================================================
-if os.path.exists('scaler.pkl'):
-    scaler = joblib.load('scaler.pkl')
-    joblib.dump(scaler, os.path.join(BASE_DIR, 'random_forest_model', 'scaler.pkl'))
-    joblib.dump(scaler, os.path.join(BASE_DIR, 'random_forest_model_no_smote', 'scaler.pkl'))
-else:
-    print("\nWARNING: scaler.pkl not found -- run preprocess.py first.")
+    param_distributions = {
+        "rf__n_estimators": [100, 200, 300, 500],
+        "rf__max_depth": [None, 10, 20, 30, 50],
+        "rf__min_samples_split": [2, 5, 10],
+        "rf__min_samples_leaf": [1, 2, 4],
+        "rf__class_weight": ["balanced", "balanced_subsample", None]
+    }
 
-OUT_DIR = 'random_forest'
-comparison_df = pd.DataFrame(comparison_rows)
-comparison_df.to_csv(os.path.join(OUT_DIR, 'rf_smote_vs_no_smote_comparison.csv'), index=False)
+    print("\nTUNING RANDOM FOREST MODEL")
+    print("Searching Random Forest parameters...")
 
-print("\n" + "=" * 60)
-print("SIDE-BY-SIDE COMPARISON (same test set, evaluated once each)")
-print("=" * 60)
-print(comparison_df.to_string(index=False))
-print("\nSaved comparison table to rf_smote_vs_no_smote_comparison.csv")
-print("SMOTE model artifacts:    'random_forest_model/'")
-print("No-SMOTE model artifacts: 'random_forest_model_no_smote/'")
+    search = RandomizedSearchCV(
+        estimator=pipeline,
+        param_distributions=param_distributions,
+        n_iter=30,
+        scoring="f1",
+        cv=cv,
+        n_jobs=-1,
+        verbose=1,
+        random_state=RANDOM_STATE,
+        return_train_score=True
+    )
+
+    search.fit(X_train, y_train)
+    best_model = search.best_estimator_
+
+    # =====================================================
+    # BEST RANDOM FOREST
+    # =====================================================
+
+    print("\nBEST RANDOM FOREST MODEL")
+    print("Best Parameters:", search.best_params_)
+    print(f"Best CV F1: {search.best_score_:.4f}")
+
+    # =====================================================
+    # OVERFITTING CHECK
+    # =====================================================
+
+    train_pred = best_model.predict(X_train)
+
+    train_accuracy = accuracy_score(y_train, train_pred)
+    train_precision = precision_score(y_train, train_pred, zero_division=0)
+    train_recall = recall_score(y_train, train_pred, zero_division=0)
+    train_f1 = f1_score(y_train, train_pred, zero_division=0)
+    f1_gap = train_f1 - search.best_score_
+
+    print("\nOVERFITTING CHECK")
+    print(f"Training Accuracy : {train_accuracy:.4f}")
+    print(f"Training Precision: {train_precision:.4f}")
+    print(f"Training Recall   : {train_recall:.4f}")
+    print(f"Training F1       : {train_f1:.4f}")
+    print(f"CV F1             : {search.best_score_:.4f}")
+    print(f"F1 Gap            : {f1_gap:.4f}")
+
+    # =====================================================
+    # OOF PROBABILITIES
+    # =====================================================
+
+    print("\nGenerating out-of-fold probabilities...")
+
+    oof_probas = cross_val_predict(
+        best_model, X_train, y_train,
+        cv=cv, method="predict_proba", n_jobs=-1
+    )[:, 1]
+
+    # =====================================================
+    # THRESHOLD OPTIMIZATION
+    # =====================================================
+
+    threshold_results = analyze_thresholds(y_train, oof_probas)
+    decision_threshold = choose_threshold(threshold_results)
+
+    threshold_results.to_csv(
+        OUTPUT_DIR / "rf_threshold_comparison.csv", index=False
+    )
+
+    # =====================================================
+    # AFTER TUNING
+    # =====================================================
+
+    print("\nAFTER TUNING: RANDOM FOREST MODEL RESULTS")
+
+    test_probas = best_model.predict_proba(X_test)[:, 1]
+    tuned_metrics, tuned_pred = calculate_metrics(y_test, test_probas, decision_threshold)
+
+    tuning_comparison = pd.DataFrame([
+        {"Stage": "Before Tuning", **baseline_metrics},
+        {"Stage": "After Tuning", **tuned_metrics}
+    ])
+
+    print(f"\nTuned threshold = {decision_threshold:.4f}")
+    print("\nTUNING COMPARISON")
+    print(tuning_comparison.to_string(index=False))
+
+    tuning_comparison.to_csv(
+        OUTPUT_DIR / "rf_tuning_comparison.csv", index=False
+    )
+
+    # =====================================================
+    # FINAL METRICS
+    # =====================================================
+
+    y_pred = tuned_pred
+    metrics = tuned_metrics
+
+    final_metrics = {
+        "Model": "Random Forest",
+        "Accuracy": metrics["Accuracy"],
+        "Precision": metrics["Precision"],
+        "Recall": metrics["Recall"],
+        "F1-Score": metrics["F1-Score"],
+        "ROC-AUC": metrics["ROC-AUC"],
+        "Default Threshold": 0.50,
+        "Decision Threshold": decision_threshold,
+        "Best CV F1": search.best_score_,
+        "Training F1": train_f1,
+        "F1 Gap": f1_gap,
+        "Best Params": str(search.best_params_)
+    }
+
+    pd.DataFrame([final_metrics]).to_csv(
+        OUTPUT_DIR / "rf_metrics.csv", index=False
+    )
+
+    # =====================================================
+    # FINAL RESULT
+    # =====================================================
+
+    print("\nFINAL OVERALL RESULT")
+    print(pd.DataFrame([tuned_metrics]).to_string(index=False))
+
+    # =====================================================
+    # SAVE MODEL
+    # =====================================================
+
+    joblib.dump(best_model, OUTPUT_DIR / "best_rf_model.joblib")
+    joblib.dump(decision_threshold, OUTPUT_DIR / "rf_decision_threshold.joblib")
+
+    # =====================================================
+    # FEATURE IMPORTANCE (Random Forest-specific)
+    # =====================================================
+
+    save_feature_importance(best_model, X_train.columns)
+
+    # =====================================================
+    # CLASSIFICATION REPORT
+    # =====================================================
+
+    print("\nCLASSIFICATION REPORT")
+    print(classification_report(
+        y_test, y_pred,
+        target_names=["No Disease", "Heart Disease"],
+        zero_division=0
+    ))
+
+    # =====================================================
+    # CONFUSION MATRIX
+    # =====================================================
+
+    cm = confusion_matrix(y_test, y_pred)
+
+    plt.figure(figsize=(6, 5))
+    sns.heatmap(
+        cm, annot=True, fmt="d", cmap="Greens", cbar=False,
+        xticklabels=["No Heart Disease", "Heart Disease"],
+        yticklabels=["No Heart Disease", "Heart Disease"]
+    )
+    plt.title("Random Forest Confusion Matrix")
+    plt.xlabel("Predicted Label")
+    plt.ylabel("True Label")
+    plt.tight_layout()
+    plt.savefig(OUTPUT_DIR / "rf_confusion_matrix.png", dpi=300)
+    plt.close()
+
+    # =====================================================
+    # ROC CURVE
+    # =====================================================
+
+    fpr, tpr, _ = roc_curve(y_test, test_probas)
+
+    plt.figure(figsize=(6, 5))
+    plt.plot(fpr, tpr, lw=2, label=f"Random Forest (AUC = {metrics['ROC-AUC']:.3f})")
+    plt.plot([0, 1], [0, 1], lw=1, linestyle="--")
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate (Recall)")
+    plt.title("Random Forest ROC Curve")
+    plt.legend(loc="lower right")
+    plt.grid(alpha=0.25)
+    plt.tight_layout()
+    plt.savefig(OUTPUT_DIR / "rf_roc_curve.png", dpi=300)
+    plt.close()
+
+    # =====================================================
+    # THRESHOLD ANALYSIS PLOT
+    # =====================================================
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(threshold_results["threshold"], threshold_results["accuracy"], label="Accuracy")
+    plt.plot(threshold_results["threshold"], threshold_results["precision"], label="Precision")
+    plt.plot(threshold_results["threshold"], threshold_results["recall"], label="Recall")
+    plt.plot(threshold_results["threshold"], threshold_results["f1"], label="F1-Score")
+    plt.axvline(
+        decision_threshold, linestyle="--",
+        label=f"Chosen Threshold ({decision_threshold:.2f})"
+    )
+    plt.ylim(0, 1)
+    plt.xlabel("Probability Threshold")
+    plt.ylabel("Score")
+    plt.title("Random Forest Threshold Analysis")
+    plt.legend()
+    plt.grid(alpha=0.25)
+    plt.tight_layout()
+    plt.savefig(OUTPUT_DIR / "rf_threshold_metrics.png", dpi=300)
+    plt.close()
+
+    # =====================================================
+    # COMPLETED
+    # =====================================================
+
+    print("\nRANDOM FOREST TRAINING COMPLETED")
+    print(f"Artefacts saved in: {OUTPUT_DIR}")
+    print("Generated files:")
+    print("- best_rf_model.joblib")
+    print("- rf_decision_threshold.joblib")
+    print("- rf_metrics.csv")
+    print("- rf_tuning_comparison.csv")
+    print("- rf_threshold_comparison.csv")
+    print("- rf_threshold_metrics.png")
+    print("- rf_confusion_matrix.png")
+    print("- rf_roc_curve.png")
+    print("- rf_feature_importance.csv")
+    print("- rf_feature_importance.png")
+
+
+# =========================================================
+# RUN
+# =========================================================
+
+if __name__ == "__main__":
+    main()

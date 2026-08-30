@@ -68,23 +68,19 @@ BASE_DIR = os.path.dirname(
 )
 
 TRAIN_X_PATH = os.path.join(
-    BASE_DIR,
-    "X_train_preprocessed.csv"
+    BASE_DIR, "Preprocessing", "X_train_preprocessed.csv"
 )
 
 TEST_X_PATH = os.path.join(
-    BASE_DIR,
-    "X_test_preprocessed.csv"
+    BASE_DIR, "Preprocessing", "X_test_preprocessed.csv"
 )
 
 TRAIN_Y_PATH = os.path.join(
-    BASE_DIR,
-    "y_train.csv"
+    BASE_DIR, "Preprocessing", "y_train.csv"
 )
 
 TEST_Y_PATH = os.path.join(
-    BASE_DIR,
-    "y_test.csv"
+    BASE_DIR, "Preprocessing", "y_test.csv"
 )
 
 OUTPUT_DIR = os.path.dirname(
