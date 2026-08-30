@@ -288,6 +288,8 @@ elif model_choice == "SVM":
 # ---------------------------------------------------------
 # Helper 0: 3D Gender Interactive Avatar Cards
 # ---------------------------------------------------------
+
+
 def create_3d_gender_cards(current_choice):
     fig = go.Figure()
     genders = [
@@ -1080,7 +1082,7 @@ with tab1:
             age = st.number_input("Age (Years)", min_value=18, max_value=100, value=50)
             sleep = st.number_input("Sleep Hours per Day", min_value=2.0, max_value=14.0, value=7.0)
             
-            st.write("*🧘 Stress Level (Click directly on gauge):*")
+            st.write("**🧘 Stress Level (Click directly on gauge):**")
             stress_fig = create_stress_gauge(st.session_state["stress_choice"])
 
             stress_event = st.plotly_chart(
