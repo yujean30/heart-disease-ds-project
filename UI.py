@@ -70,59 +70,50 @@ def load_baseline_artifacts():
 
 @st.cache_resource
 def load_rf_artifacts():
-    model_path = 'random_forest/best_rf_model.joblib'
-    scaler_path = 'Preprocessing/shared_scaler.pkl'
+    model_path = 'random_forest/random_forest_model/random_forest_tuned.joblib'
+    scaler_path = 'shared_scaler.pkl'
     if os.path.exists(model_path) and os.path.exists(scaler_path):
         return joblib.load(model_path), joblib.load(scaler_path)
     return None, None
 
 @st.cache_resource
 def load_svm_artifacts():
-
     model_path = "SVM_Model/best_svm_model.joblib"
     scaler_path = "Preprocessing/shared_scaler.pkl"
     encoder_path = "Preprocessing/feature_encoders.pkl"
-
+    threshold_path = "SVM_Model/svm_decision_threshold.joblib"
     required_files = [
         model_path,
         scaler_path,
-        encoder_path
+        encoder_path,
+        threshold_path
     ]
-
     missing_files = [
         path for path in required_files
         if not os.path.exists(path)
     ]
-
     if missing_files:
         return (
             None,
             None,
             None,
+            None,
             missing_files
         )
-
     try:
-
         model = joblib.load(model_path)
         scaler = joblib.load(scaler_path)
         encoders = joblib.load(encoder_path)
-
+        threshold = joblib.load(threshold_path)
         return (
             model,
             scaler,
             encoders,
+            threshold,
             []
         )
-
     except Exception as e:
-
-        return (
-            None,
-            None,
-            None,
-            [f"Loading error: {e}"]
-        )
+        return (None,None,None,None,[f"Loading error: {e}"])
 
 
 @st.cache_resource
@@ -151,7 +142,7 @@ highlight_targets = ["Accuracy", "Precision", "Recall", "F1-Score", "ROC-AUC"]
 
 
 lr_metrics_path = 'Logistic_Regression_Model/lr_baseline_metrics.csv'
-rf_metrics_path = 'random_forest/rf_metrics.csv'
+rf_metrics_path = 'random_forest/random_forest_model/metrics.csv'
 svm_metrics_path = "SVM_Model/svm_metrics.csv"
 knn_metrics_path = 'KNN_Model/knn_baseline_metrics.csv'
 
@@ -275,10 +266,10 @@ if model_choice == "Logistic Regression (Baseline)":
     decision_threshold = 0.5
 elif model_choice == "Random Forest":
     model, scaler = rf_model, rf_scaler
-    metrics_path = 'random_forest/rf_metrics.csv'
-    cm_path = 'random_forest/rf_confusion_matrix.png'
-    roc_path = 'random_forest/rf_roc_curve.png'
-    model_dir = 'random_forest'
+    metrics_path = 'random_forest/random_forest_model/metrics.csv'
+    cm_path = 'random_forest/random_forest_model/confusion_matrix.png'
+    roc_path = 'random_forest/random_forest_model/roc_curve.png'
+    model_dir = 'random_forest/random_forest_model'
     threshold_path = os.path.join(model_dir, 'decision_threshold.joblib')
     if os.path.exists(threshold_path):
         decision_threshold = joblib.load(threshold_path)
@@ -296,8 +287,7 @@ elif model_choice == "SVM":
     metrics_path = "SVM_Model/svm_metrics.csv"
     cm_path = "SVM_Model/svm_confusion_matrix.png"
     roc_path = "SVM_Model/svm_roc_curve.png"
-    decision_threshold =0.5
-
+    decision_threshold = 0.5
 
 
 # ---------------------------------------------------------
@@ -1056,7 +1046,19 @@ with tab1:
 
     col1, col2, col3 = st.columns(3)
 
-    # =========================================================
+    # =====================================================
+    # COLUMN 1
+    # =====================================================
+
+    with col1:
+
+        with st.container(border=True):
+
+            st.write(
+                "##### 👤 Demographics & Habits"
+            )
+
+# =========================================================
     # CATEGORY 1: Demographics & Personal Lifestyle
     # =========================================================
     with col1:
