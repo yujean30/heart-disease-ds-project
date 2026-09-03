@@ -7,7 +7,6 @@ import time
 import winsound
 import threading
 import time
-import winsound
 import threading
 
 import streamlit as st
