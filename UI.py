@@ -1285,8 +1285,6 @@ with tab1:
                         columns=input_df.columns,
                         index=input_df.index
                     )
-                elif model_choice == "SVM":
-                    pass
                 else:
                     input_df[num_cols] = scaler.transform(input_df[num_cols])
 
