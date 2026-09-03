@@ -146,7 +146,7 @@ highlight_targets = ["Accuracy", "Precision", "Recall", "F1-Score", "ROC-AUC"]
 lr_metrics_path = 'Logistic_Regression_Model/lr_baseline_metrics.csv'
 rf_metrics_path = 'random_forest/rf_metrics.csv'
 svm_metrics_path = "SVM_Model/svm_metrics.csv"
-knn_metrics_path = 'KNN_Model/knn_baseline_metrics.csv'
+knn_baseline_metrics_path = 'KNN_Model/knn_baseline_metrics.csv'
 
 
 if os.path.exists(lr_metrics_path) and os.path.exists(rf_metrics_path):
@@ -160,8 +160,8 @@ if os.path.exists(lr_metrics_path) and os.path.exists(rf_metrics_path):
         df_svm = pd.read_csv(svm_metrics_path)
         df_svm["Model"] = "SVM"
         comparison_frames.append(df_svm)
-    if os.path.exists(knn_metrics_path):
-        df_knn = pd.read_csv(knn_metrics_path)
+    if os.path.exists(knn_baseline_metrics_path):
+        df_knn = pd.read_csv(knn_baseline_metrics_path)
         df_knn = df_knn.rename(columns={
             'F1 Score': 'F1-Score',
             'ROC AUC': 'ROC-AUC'
