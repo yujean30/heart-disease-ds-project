@@ -4,7 +4,6 @@ import time
 from pathlib import Path
 from importlib.resources import path
 import time
-import winsound
 import threading
 import time
 import threading
