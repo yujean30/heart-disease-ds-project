@@ -3,17 +3,16 @@ import random
 import time
 from pathlib import Path
 from importlib.resources import path
-import time
+import winsound
 import threading
-import time
-import threading
+
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
 from PIL import Image
-#import plotly.express as px
+import plotly.express as px
 import plotly.graph_objects as go
 
 # ---------------------------------------------------------
