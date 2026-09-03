@@ -3,7 +3,6 @@ import random
 import time
 from pathlib import Path
 from importlib.resources import path
-import winsound
 import threading
 
 
