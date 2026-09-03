@@ -274,7 +274,7 @@ elif model_choice == "Random Forest":
     decision_threshold = 0.5
 elif model_choice == "KNN":
     model, scaler = knn_model, knn_scaler
-    metrics_path = 'KNN_Model/knn_before_after_metrics.csv'
+    metrics_path = 'KNN_Model/knn_raw_dataset_metrics.csv'
     cm_path = 'KNN_Model/knn_confusion_matrix.png'
     roc_path = 'KNN_Model/knn_roc_curve.png'
     decision_threshold = 0.5
