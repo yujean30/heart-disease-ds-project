@@ -72,8 +72,8 @@ def load_baseline_artifacts():
 
 @st.cache_resource
 def load_rf_artifacts():
-    model_path = 'random_forest/best_rf_model.joblib'
-    threshold_path = 'random_forest/rf_decision_threshold.joblib'
+    model_path = 'Random_Forest/best_rf_model.joblib'
+    threshold_path = 'Random_Forest/rf_decision_threshold.joblib'
 
     if not os.path.exists(model_path):
         return None, None
@@ -153,7 +153,7 @@ highlight_targets = ["Accuracy", "Precision", "Recall", "F1-Score", "ROC-AUC"]
 
 
 lr_metrics_path = 'Logistic_Regression_Model/lr_baseline_metrics.csv'
-rf_metrics_path = 'random_forest/rf_metrics.csv'
+rf_metrics_path = 'Random_Forest/rf_metrics.csv'
 svm_metrics_path = "SVM_Model/svm_metrics.csv"
 knn_baseline_metrics_path = 'KNN_Model/knn_baseline_metrics.csv'
 
@@ -295,9 +295,9 @@ if model_choice == "Logistic Regression (Baseline)":
 elif model_choice == "Random Forest":
     model = rf_model
     scaler = None
-    metrics_path = 'random_forest/rf_metrics.csv'
-    cm_path = 'random_forest/rf_confusion_matrix.png'
-    roc_path = 'random_forest/rf_roc_curve.png'
+    metrics_path = 'Random_Forest/rf_metrics.csv'
+    cm_path = 'Random_Forest/rf_confusion_matrix.png'
+    roc_path = 'Random_Forest/rf_roc_curve.png'
     decision_threshold = 0.5
 elif model_choice == "KNN":
     model, scaler = knn_model, knn_scaler
