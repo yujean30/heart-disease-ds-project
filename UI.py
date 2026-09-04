@@ -138,7 +138,7 @@ def load_knn_artifacts():
 
 
 lr_model, lr_scaler = load_baseline_artifacts()
-rf_model, _ = load_rf_artifacts()
+rf_model, rf_threshold = load_rf_artifacts()
 (svm_model,svm_scaler,svm_encoders,svm_threshold,svm_missing_files) = load_svm_artifacts()
 knn_model, knn_scaler = load_knn_artifacts()
 
@@ -298,7 +298,7 @@ elif model_choice == "Random Forest":
     metrics_path = 'Random_Forest/rf_metrics.csv'
     cm_path = 'Random_Forest/rf_confusion_matrix.png'
     roc_path = 'Random_Forest/rf_roc_curve.png'
-    decision_threshold = 0.5
+    decision_threshold = rf_threshold if rf_threshold is not None else 0.5
 elif model_choice == "KNN":
     model, scaler = knn_model, knn_scaler
     metrics_path = 'KNN_Model/knn_baseline_metrics.csv'
@@ -1268,7 +1268,7 @@ with tab1:
     if st.button("🚀 START PREDICTION", type="primary", use_container_width=True):
         if model is None:
             st.error(f"❌ {model_choice} model is not available.")
-        elif model_choice != "SVM" and scaler is None:
+        elif model_choice != "Random Forest" and scaler is None:
             st.error(f"❌ {model_choice} scaler is not available.")
         else:
             input_dict = {
@@ -1308,7 +1308,7 @@ with tab1:
                         columns=input_df.columns,
                         index=input_df.index
                     )
-                else:
+                elif model_choice != "Random Forest":
                     input_df[num_cols] = scaler.transform(input_df[num_cols])
 
                 final_probability = float(model.predict_proba(input_df)[0][1])
