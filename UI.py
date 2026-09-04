@@ -149,117 +149,6 @@ svm_metrics_path = "SVM_Model/svm_metrics.csv"
 knn_baseline_metrics_path = 'KNN_Model/knn_baseline_metrics.csv'
 
 
-if os.path.exists(lr_metrics_path) and os.path.exists(rf_metrics_path):
-    df_lr = pd.read_csv(lr_metrics_path)
-    df_rf = pd.read_csv(rf_metrics_path)
-
-    df_lr['Model'] = 'Logistic Regression'
-    df_rf['Model'] = 'Random Forest'
-    comparison_frames = [df_lr,df_rf]
-    if os.path.exists(svm_metrics_path):
-        df_svm = pd.read_csv(svm_metrics_path)
-        df_svm["Model"] = "SVM"
-        comparison_frames.append(df_svm)
-    if os.path.exists(knn_baseline_metrics_path):
-        df_knn = pd.read_csv(knn_baseline_metrics_path)
-        df_knn = df_knn.rename(columns={
-            'F1 Score': 'F1-Score',
-            'ROC AUC': 'ROC-AUC'
-        })
-        df_knn['Model'] = 'KNN'
-        comparison_frames.append(df_knn)
-
-    df_compare = pd.concat( comparison_frames,ignore_index=True)
-    available_columns = [
-        column
-        for column in display_metric_columns
-        if column in df_compare.columns
-    ]
-    df_compare = df_compare[
-        ["Model", *available_columns]
-    ]
-    if "F1-Score" in df_compare.columns:
-        best_model_idx = df_compare["F1-Score"].idxmax()
-        best_model_name = df_compare.loc[
-            best_model_idx,
-            "Model"
-        ]
-    else:
-        best_model_name = "N/A"
-
-    styled_df = df_compare.style.highlight_max(
-        subset=[
-            col
-            for col in highlight_targets
-            if col in df_compare.columns
-        ],
-        color="#bbf7d0",
-        axis=0
-    )
-
-    styled_df = styled_df.format(
-        {
-            col: "{:.4f}"
-            for col in available_columns
-        }
-    )
-    st.write("### Model Comparison Table")
-    st.dataframe(styled_df, width="stretch")
-
-    comparison_long = df_compare.melt(
-        id_vars="Model",
-        value_vars=display_metric_columns,
-        var_name="Metric",
-        value_name="Score"
-    )
-    comparison_long["Score (%)"] = comparison_long["Score"] * 100
-
-    st.write("### Performance Comparison")
-    comparison_fig = px.bar(
-        comparison_long,
-        x="Metric",
-        y="Score (%)",
-        color="Model",
-        barmode="group",
-        text="Score (%)",
-        hover_data={"Score (%)": ":.2f"},
-        color_discrete_map={
-            "Logistic Regression": "#ecec98",
-            "Random Forest": "#7dcfb6",
-            "SVM": "#b5a4cb",
-            "KNN": "#1C2B48"
-        },
-        title="Model Performance Across Evaluation Metrics"
-    )
-    comparison_fig.update_traces(
-        texttemplate="%{text:.1f}%",
-        textposition="outside",
-        cliponaxis=False
-    )
-    comparison_fig.update_layout(
-        yaxis_title="Score (%)",
-        yaxis_range=[0, 105],
-        xaxis_title="Evaluation metric",
-        legend_title="Model"
-    )
-    st.plotly_chart(comparison_fig, width="stretch")
-
-    st.success(f"✅ Based on F1-Score, **{best_model_name}** performs better overall.")
-else:
-    st.info("Comparison metrics not available yet. Please ensure both models have metrics CSV files saved.")
-
-st.markdown("---")
-
-# =========================================================
-# 6. MODEL SELECTION
-# =========================================================
-st.write("### Select Prediction Model")
-model_choice = st.selectbox(
-    "Choose a model:",
-    ["Logistic Regression (Baseline)", "Random Forest", "SVM", "KNN"]
-)
-
-
 if os.path.exists(lr_metrics_path):
     df_lr = pd.read_csv(lr_metrics_path)
     df_lr["Model"] = "Logistic Regression"
@@ -375,6 +264,44 @@ if comparison_frames:
 
 else:
     st.info("No model metrics CSV files were found.")
+    
+st.markdown("---")
+
+# =========================================================
+# 6. MODEL SELECTION
+# =========================================================
+st.write("### Select Prediction Model")
+model_choice = st.selectbox(
+    "Choose a model:",
+    ["Logistic Regression (Baseline)", "Random Forest", "SVM", "KNN"]
+)
+
+
+if model_choice == "Logistic Regression (Baseline)":
+    model, scaler = lr_model, lr_scaler
+    metrics_path = 'Logistic_Regression_Model/lr_baseline_metrics.csv'
+    cm_path = 'Logistic_Regression_Model/lr_confusion_matrix.png'
+    roc_path = 'Logistic_Regression_Model/lr_roc_curve.png'
+    decision_threshold = 0.5
+elif model_choice == "Random Forest":
+    model, scaler = rf_model, rf_scaler
+    metrics_path = 'random_forest/rf_metrics.csv'
+    cm_path = 'random_forest/rf_confusion_matrix.png'
+    roc_path = 'random_forest/rf_roc_curve.png'
+    decision_threshold = 0.5
+elif model_choice == "KNN":
+    model, scaler = knn_model, knn_scaler
+    metrics_path = 'KNN_Model/knn_baseline_metrics.csv'
+    cm_path = 'KNN_Model/knn_confusion_matrix.png'
+    roc_path = 'KNN_Model/knn_roc_curve.png'
+    decision_threshold = 0.5
+elif model_choice == "SVM":
+    model = svm_model
+    scaler = svm_scaler
+    metrics_path = "SVM_Model/svm_metrics.csv"
+    cm_path = "SVM_Model/svm_confusion_matrix.png"
+    roc_path = "SVM_Model/svm_roc_curve.png"
+    decision_threshold = 0.5
 
 
 # ---------------------------------------------------------
