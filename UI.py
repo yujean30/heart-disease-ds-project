@@ -138,7 +138,7 @@ def load_knn_artifacts():
 
 
 lr_model, lr_scaler = load_baseline_artifacts()
-rf_model, rf_threshold = load_rf_artifacts()
+rf_model, _ = load_rf_artifacts()
 (svm_model,svm_scaler,svm_encoders,svm_threshold,svm_missing_files) = load_svm_artifacts()
 knn_model, knn_scaler = load_knn_artifacts()
 
@@ -293,7 +293,8 @@ if model_choice == "Logistic Regression (Baseline)":
     roc_path = 'Logistic_Regression_Model/lr_roc_curve.png'
     decision_threshold = 0.5
 elif model_choice == "Random Forest":
-    model, decision_threshold = rf_model, rf_threshold
+    model = rf_model
+    scaler = None
     metrics_path = 'random_forest/rf_metrics.csv'
     cm_path = 'random_forest/rf_confusion_matrix.png'
     roc_path = 'random_forest/rf_roc_curve.png'
