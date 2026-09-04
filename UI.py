@@ -73,10 +73,19 @@ def load_baseline_artifacts():
 @st.cache_resource
 def load_rf_artifacts():
     model_path = 'random_forest/best_rf_model.joblib'
-    scaler_path = 'Preprocessing/shared_scaler.pkl'
-    if os.path.exists(model_path) and os.path.exists(scaler_path):
-        return joblib.load(model_path), joblib.load(scaler_path)
-    return None, None
+    threshold_path = 'random_forest/rf_decision_threshold.joblib'
+
+    if not os.path.exists(model_path):
+        return None, None
+
+    model = joblib.load(model_path)
+
+    if os.path.exists(threshold_path):
+        threshold = joblib.load(threshold_path)
+    else:
+        threshold = 0.5
+
+    return model, threshold
 
 @st.cache_resource
 def load_svm_artifacts():
@@ -129,7 +138,7 @@ def load_knn_artifacts():
 
 
 lr_model, lr_scaler = load_baseline_artifacts()
-rf_model, rf_scaler = load_rf_artifacts()
+rf_model, rf_threshold = load_rf_artifacts()
 (svm_model,svm_scaler,svm_encoders,svm_threshold,svm_missing_files) = load_svm_artifacts()
 knn_model, knn_scaler = load_knn_artifacts()
 
@@ -284,7 +293,7 @@ if model_choice == "Logistic Regression (Baseline)":
     roc_path = 'Logistic_Regression_Model/lr_roc_curve.png'
     decision_threshold = 0.5
 elif model_choice == "Random Forest":
-    model, scaler = rf_model, rf_scaler
+    model, decision_threshold = rf_model, rf_threshold
     metrics_path = 'random_forest/rf_metrics.csv'
     cm_path = 'random_forest/rf_confusion_matrix.png'
     roc_path = 'random_forest/rf_roc_curve.png'
