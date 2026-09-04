@@ -57,6 +57,8 @@ with header_container:
 # ---------------------------------------------------------
 # 3. Model & Scaler Artifact Loaders
 # ---------------------------------------------------------
+APP_DIR = Path(__file__).resolve().parent
+
 try:
     from SVM_Model.SVM import SVMXGBHybrid
 except Exception:
@@ -64,16 +66,16 @@ except Exception:
 
 @st.cache_resource
 def load_baseline_artifacts():
-    model_path = 'Logistic_Regression_Model/best_lr_model.pkl'
-    scaler_path = 'Logistic_Regression_Model/scaler.pkl'
+    model_path = APP_DIR / 'Logistic_Regression_Model/best_lr_model.pkl'
+    scaler_path = APP_DIR / 'Logistic_Regression_Model/scaler.pkl'
     if os.path.exists(model_path) and os.path.exists(scaler_path):
         return joblib.load(model_path), joblib.load(scaler_path)
     return None, None
 
 @st.cache_resource
 def load_rf_artifacts():
-    model_path = 'Random_Forest/best_rf_model.joblib'
-    threshold_path = 'Random_Forest/rf_decision_threshold.joblib'
+    model_path = APP_DIR / 'Random_Forest/best_rf_model.joblib'
+    threshold_path = APP_DIR / 'Random_Forest/rf_decision_threshold.joblib'
 
     if not os.path.exists(model_path):
         return None, None
@@ -89,10 +91,10 @@ def load_rf_artifacts():
 
 @st.cache_resource
 def load_svm_artifacts():
-    model_path = "SVM_Model/best_svm_model.joblib"
-    scaler_path = "Preprocessing/shared_scaler.pkl"
-    encoder_path = "Preprocessing/feature_encoders.pkl"
-    threshold_path = "SVM_Model/svm_decision_threshold.joblib"
+    model_path = APP_DIR / "SVM_Model/best_svm_model.joblib"
+    scaler_path = APP_DIR / "Preprocessing/shared_scaler.pkl"
+    encoder_path = APP_DIR / "Preprocessing/feature_encoders.pkl"
+    threshold_path = APP_DIR / "SVM_Model/svm_decision_threshold.joblib"
     required_files = [
         model_path,
         scaler_path,
@@ -129,8 +131,8 @@ def load_svm_artifacts():
 
 @st.cache_resource
 def load_knn_artifacts():
-    model_path = 'KNN_Model/knn_model.joblib'
-    scaler_path = 'KNN_Model/scaler.pkl'
+    model_path = APP_DIR / 'KNN_Model/knn_model.joblib'
+    scaler_path = APP_DIR / 'KNN_Model/scaler.pkl'
     if os.path.exists(model_path) and os.path.exists(scaler_path):
         return joblib.load(model_path), joblib.load(scaler_path)
     return None, None
@@ -152,10 +154,10 @@ display_metric_columns = ["Accuracy", "Precision", "Recall", "F1-Score", "ROC-AU
 highlight_targets = ["Accuracy", "Precision", "Recall", "F1-Score", "ROC-AUC"]
 
 
-lr_metrics_path = 'Logistic_Regression_Model/lr_baseline_metrics.csv'
-rf_metrics_path = 'Random_Forest/rf_metrics.csv'
-svm_metrics_path = "SVM_Model/svm_metrics.csv"
-knn_baseline_metrics_path = 'KNN_Model/knn_baseline_metrics.csv'
+lr_metrics_path = APP_DIR / 'Logistic_Regression_Model/lr_baseline_metrics.csv'
+rf_metrics_path = APP_DIR / 'Random_Forest/rf_metrics.csv'
+svm_metrics_path = APP_DIR / "SVM_Model/svm_metrics.csv"
+knn_baseline_metrics_path = APP_DIR / 'KNN_Model/knn_baseline_metrics.csv'
 
 
 if os.path.exists(lr_metrics_path):
@@ -288,29 +290,29 @@ model_choice = st.selectbox(
 
 if model_choice == "Logistic Regression (Baseline)":
     model, scaler = lr_model, lr_scaler
-    metrics_path = 'Logistic_Regression_Model/lr_baseline_metrics.csv'
-    cm_path = 'Logistic_Regression_Model/lr_confusion_matrix.png'
-    roc_path = 'Logistic_Regression_Model/lr_roc_curve.png'
+    metrics_path = APP_DIR / 'Logistic_Regression_Model/lr_baseline_metrics.csv'
+    cm_path = APP_DIR / 'Logistic_Regression_Model/lr_confusion_matrix.png'
+    roc_path = APP_DIR / 'Logistic_Regression_Model/lr_roc_curve.png'
     decision_threshold = 0.5
 elif model_choice == "Random Forest":
     model = rf_model
     scaler = None
-    metrics_path = 'Random_Forest/rf_metrics.csv'
-    cm_path = 'Random_Forest/rf_confusion_matrix.png'
-    roc_path = 'Random_Forest/rf_roc_curve.png'
+    metrics_path = APP_DIR / 'Random_Forest/rf_metrics.csv'
+    cm_path = APP_DIR / 'Random_Forest/rf_confusion_matrix.png'
+    roc_path = APP_DIR / 'Random_Forest/rf_roc_curve.png'
     decision_threshold = rf_threshold if rf_threshold is not None else 0.5
 elif model_choice == "KNN":
     model, scaler = knn_model, knn_scaler
-    metrics_path = 'KNN_Model/knn_baseline_metrics.csv'
-    cm_path = 'KNN_Model/knn_confusion_matrix.png'
-    roc_path = 'KNN_Model/knn_roc_curve.png'
+    metrics_path = APP_DIR / 'KNN_Model/knn_baseline_metrics.csv'
+    cm_path = APP_DIR / 'KNN_Model/knn_confusion_matrix.png'
+    roc_path = APP_DIR / 'KNN_Model/knn_roc_curve.png'
     decision_threshold = 0.5
 elif model_choice == "SVM":
     model = svm_model
     scaler = svm_scaler
-    metrics_path = "SVM_Model/svm_metrics.csv"
-    cm_path = "SVM_Model/svm_confusion_matrix.png"
-    roc_path = "SVM_Model/svm_roc_curve.png"
+    metrics_path = APP_DIR / "SVM_Model/svm_metrics.csv"
+    cm_path = APP_DIR / "SVM_Model/svm_confusion_matrix.png"
+    roc_path = APP_DIR / "SVM_Model/svm_roc_curve.png"
     decision_threshold = 0.5
 
 
