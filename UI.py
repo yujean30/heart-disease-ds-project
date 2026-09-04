@@ -166,8 +166,8 @@ if os.path.exists(svm_metrics_path):
     df_svm["Model"] = "SVM"
     comparison_frames.append(df_svm)
 
-if os.path.exists(knn_metrics_path):
-    df_knn = pd.read_csv(knn_metrics_path)
+if os.path.exists(knn_baseline_metrics_path):
+    df_knn = pd.read_csv(knn_baseline_metrics_path)
     df_knn = df_knn.rename(columns={
         "F1 Score": "F1-Score",
         "ROC AUC": "ROC-AUC"
@@ -264,7 +264,7 @@ if comparison_frames:
 
 else:
     st.info("No model metrics CSV files were found.")
-    
+
 st.markdown("---")
 
 # =========================================================
